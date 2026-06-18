@@ -94,8 +94,9 @@ function applyProfileToHeader(profile) {
 function promptForProfile() {
   return new Promise(resolve => {
     const overlay = document.getElementById('welcomeOverlay');
-    overlay.classList.remove('hidden');
+    overlay.classList.remove('hidden'); // show it — hidden by default in HTML
 
+    // Use { once: true } so the listener can't pile up across multiple calls
     document.getElementById('profileSaveBtn').addEventListener('click', async () => {
       const fn = document.getElementById('profileFirst');
       const ln = document.getElementById('profileLast');
@@ -108,15 +109,16 @@ function promptForProfile() {
 
       const wantsNotif = document.getElementById('profileNotif').checked;
 
-      if (wantsNotif) {
-        await Notification.requestPermission();
+      // Request permission but never let it block or throw
+      if (wantsNotif && 'Notification' in window) {
+        try { await Notification.requestPermission(); } catch (_) {}
       }
 
       const profile = { firstName, lastName, notif: wantsNotif };
       saveProfile(profile);
       overlay.classList.add('hidden');
       resolve(profile);
-    });
+    }, { once: true });
   });
 }
 
@@ -507,15 +509,20 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
 
 (async () => {
   // 1. Apply saved theme
-  applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
+  try { applyTheme(localStorage.getItem(THEME_KEY) || 'dark'); } catch (_) { applyTheme('dark'); }
 
-  // 2. Ensure user has a profile (blocks until submitted if first visit)
-  let profile = loadProfile();
-  if (!profile) {
-    profile = await promptForProfile();
-  } else {
+  // 2. Load profile — if one exists skip the welcome screen entirely
+  let profile = null;
+  try { profile = loadProfile(); } catch (_) {}
+
+  if (profile) {
+    // Already set up — just hide the overlay and continue
     document.getElementById('welcomeOverlay').classList.add('hidden');
+  } else {
+    // First visit — show welcome screen and wait for submission
+    profile = await promptForProfile();
   }
+
   applyProfileToHeader(profile);
 
   // 3. Wire up profile pill click → edit modal
