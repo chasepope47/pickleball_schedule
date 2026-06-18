@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SafeStreets Pickleball Schedule</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy: #0d2b4e;
+      --navy-light: #1a4a7a;
+      --green: #4caf50;
+      --green-dark: #388e3c;
+      --green-bg: #e8f5e9;
+      --green-border: #a5d6a7;
+      --orange: #ff9800;
+      --orange-bg: #fff3e0;
+      --orange-border: #ffcc80;
+      --red: #e53935;
+      --bg: #f0f4f8;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      min-height: 100vh;
+      color: #1a2535;
+    }
+
+    header {
+      background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
+      color: #fff;
+      padding: 20px 32px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    }
+    .logo-badge {
+      width: 50px; height: 50px;
+      background: var(--green);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; font-weight: 900; color: #fff; flex-shrink: 0;
+    }
+    .header-text h1 { font-size: 1.6rem; font-weight: 800; }
+    .header-text p  { font-size: 0.85rem; opacity: 0.7; margin-top: 2px; }
+
+    #notifBanner {
+      background: #e3f2fd;
+      border-bottom: 2px solid #90caf9;
+      padding: 10px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 0.85rem;
+      color: #0d47a1;
+    }
+    #notifBanner.hidden { display: none; }
+    #notifBanner button {
+      background: #1565c0; color: #fff;
+      border: none; border-radius: 6px;
+      padding: 6px 14px; font-size: 0.82rem; font-weight: 700; cursor: pointer;
+      flex-shrink: 0;
+    }
+    #notifBanner button:hover { background: #0d47a1; }
+
+    main { max-width: 1140px; margin: 0 auto; padding: 28px 20px; }
+
+    .week-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 18px; flex-wrap: wrap; gap: 10px;
+    }
+    .week-bar h2 { font-size: 1rem; color: var(--navy); font-weight: 700; }
+    .reset-badge {
+      font-size: 0.75rem; color: #888;
+      background: #fff; border: 1px solid #ddd;
+      border-radius: 20px; padding: 3px 12px;
+    }
+
+    .day-tabs {
+      display: flex; gap: 6px; margin-bottom: 22px;
+      overflow-x: auto; padding-bottom: 2px;
+    }
+    .day-tab {
+      flex-shrink: 0;
+      background: #fff; border: 2px solid #ddd;
+      border-radius: 10px; padding: 8px 14px;
+      cursor: pointer; text-align: center;
+      transition: border-color 0.15s, background 0.15s;
+      min-width: 72px;
+    }
+    .day-tab:hover { border-color: var(--navy-light); }
+    .day-tab.active { background: var(--navy); border-color: var(--navy); color: #fff; }
+    .day-tab .day-name { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+    .day-tab .day-date { font-size: 0.9rem; font-weight: 700; margin-top: 2px; }
+    .day-tab.today-tab:not(.active) { border-color: var(--green); }
+    .day-tab.today-tab:not(.active) .day-name { color: var(--green-dark); }
+
+    .courts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+    }
+    @media (max-width: 700px) { .courts-grid { grid-template-columns: 1fr; } }
+
+    .court-card {
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
+    .court-header {
+      background: var(--navy); color: #fff;
+      padding: 13px 18px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .court-icon { font-size: 1.2rem; }
+    .court-header h3 { font-size: 1rem; font-weight: 700; }
+    .slots-free {
+      margin-left: auto; font-size: 0.75rem;
+      background: var(--green); padding: 3px 10px;
+      border-radius: 20px; font-weight: 600;
+    }
+    .slot-list { padding: 10px; display: flex; flex-direction: column; gap: 5px; }
+
+    .slot {
+      display: flex; align-items: center;
+      padding: 9px 12px; border-radius: 8px;
+      cursor: pointer;
+      transition: transform 0.1s, box-shadow 0.1s;
+      border: 2px solid transparent; user-select: none;
+    }
+    .slot:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(0,0,0,0.1); }
+    .slot.open   { background: var(--green-bg); border-color: var(--green-border); }
+    .slot.open:hover { background: #c8e6c9; border-color: var(--green); }
+    .slot.booked { background: var(--orange-bg); border-color: var(--orange-border); }
+    .slot.booked:hover { background: #ffe0b2; border-color: var(--orange); }
+    .slot.past   { opacity: 0.42; cursor: default; pointer-events: none; }
+
+    .slot-time   { font-size: 0.82rem; font-weight: 700; width: 108px; flex-shrink: 0; color: var(--navy); }
+    .slot-status { font-size: 0.8rem; flex: 1; }
+    .slot.open   .slot-status { color: var(--green-dark); }
+    .slot.booked .slot-status { color: #e65100; font-weight: 600; }
+    .slot-action { font-size: 0.72rem; color: #bbb; flex-shrink: 0; margin-left: 6px; }
+
+    .legend {
+      display: flex; gap: 16px; align-items: center;
+      font-size: 0.8rem; color: #555; margin-bottom: 20px; flex-wrap: wrap;
+    }
+    .legend-item { display: flex; align-items: center; gap: 5px; }
+    .legend-dot { width: 13px; height: 13px; border-radius: 4px; }
+    .dot-open   { background: var(--green-bg); border: 2px solid var(--green); }
+    .dot-booked { background: var(--orange-bg); border: 2px solid var(--orange); }
+    .dot-past   { background: #eee; border: 2px solid #ccc; }
+
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45); z-index: 100;
+      align-items: center; justify-content: center;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+      background: #fff; border-radius: 14px; padding: 30px 26px;
+      width: 100%; max-width: 420px;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.25);
+      animation: pop 0.18s ease-out;
+    }
+    @keyframes pop {
+      from { transform: scale(0.9); opacity: 0; }
+      to   { transform: scale(1);   opacity: 1; }
+    }
+    .modal h4 { font-size: 1.05rem; color: var(--navy); margin-bottom: 4px; }
+    .modal .modal-sub { font-size: 0.82rem; color: #777; margin-bottom: 18px; }
+
+    .form-row { display: flex; gap: 10px; }
+    .form-group { display: flex; flex-direction: column; gap: 5px; flex: 1; margin-bottom: 14px; }
+    .form-group label { font-size: 0.78rem; font-weight: 700; color: #444; }
+    .form-group input {
+      padding: 9px 12px; border: 2px solid #ddd; border-radius: 8px;
+      font-size: 0.9rem; outline: none; transition: border-color 0.15s;
+    }
+    .form-group input:focus { border-color: var(--navy-light); }
+    .form-group input.error { border-color: var(--red); }
+
+    .notif-opt {
+      background: #e3f2fd; border-radius: 8px; padding: 10px 14px;
+      margin-bottom: 14px; font-size: 0.8rem; color: #0d47a1;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .notif-opt input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; }
+    .notif-opt label { cursor: pointer; user-select: none; }
+
+    .modal-actions { display: flex; gap: 10px; margin-top: 4px; }
+    .btn {
+      padding: 10px 18px; border: none; border-radius: 8px;
+      font-size: 0.88rem; font-weight: 700; cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn:hover { opacity: 0.88; transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn-primary   { background: var(--navy); color: #fff; flex: 1; }
+    .btn-danger    { background: var(--red);  color: #fff; flex: 1; }
+    .btn-secondary { background: #eee; color: #333; }
+
+    footer {
+      text-align: center; padding: 24px;
+      font-size: 0.78rem; color: #bbb;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-badge">SS</div>
+  <div class="header-text">
+    <h1>SafeStreets</h1>
+    <p>Pickleball Court Schedule</p>
+  </div>
+</header>
+
+<div id="notifBanner">
+  <span>🔔 Enable browser notifications to receive a 30-minute reminder before your court time.</span>
+  <button onclick="enableNotifications()">Enable Reminders</button>
+</div>
+
+<main>
+  <div class="week-bar">
+    <h2 id="weekLabel"></h2>
+    <span class="reset-badge" id="resetLabel"></span>
+  </div>
+
+  <div class="day-tabs" id="dayTabs"></div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot dot-open"></div> Available</div>
+    <div class="legend-item"><div class="legend-dot dot-booked"></div> Reserved</div>
+    <div class="legend-item"><div class="legend-dot dot-past"></div> Past</div>
+  </div>
+
+  <div class="courts-grid">
+    <div class="court-card">
+      <div class="court-header">
+        <span class="court-icon">🏓</span>
+        <h3>Court 1</h3>
+        <span class="slots-free" id="free1"></span>
+      </div>
+      <div class="slot-list" id="slots1"></div>
+    </div>
+    <div class="court-card">
+      <div class="court-header">
+        <span class="court-icon">🏓</span>
+        <h3>Court 2</h3>
+        <span class="slots-free" id="free2"></span>
+      </div>
+      <div class="slot-list" id="slots2"></div>
+    </div>
+  </div>
+</main>
+
+<footer>SafeStreets &mdash; Internal Use Only &mdash; Resets every Monday</footer>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h4 id="modalTitle"></h4>
+    <p class="modal-sub" id="modalSub"></p>
+    <div id="modalBody"></div>
+    <div class="modal-actions" id="modalActions"></div>
+  </div>
+</div>
+
+<script>
+const HOURS = Array.from({ length: 16 }, (_, i) => i + 6); // 6–21
+
+function fmtHour(h) {
+  const p = h < 12 ? 'AM' : 'PM';
+  const d = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${d}:00 ${p}`;
+}
+
+function slotLabel(h) {
+  return `${fmtHour(h)} – ${fmtHour(h + 1)}`;
+}
+
+function getMondayOf(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay();
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  return d;
+}
+
+function isoDate(d) {
+  return d.toISOString().slice(0, 10);
+}
+
+const WEEK_MONDAY = getMondayOf(new Date());
+const WEEK_KEY    = 'ss_pickleball_' + isoDate(WEEK_MONDAY);
+
+const DAY_NAMES = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+const DAY_SHORT = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+function dayDate(dayIdx) {
+  const d = new Date(WEEK_MONDAY);
+  d.setDate(d.getDate() + dayIdx);
+  return d;
+}
+
+function slotDateTime(dayIdx, hour) {
+  const d = dayDate(dayIdx);
+  d.setHours(hour, 0, 0, 0);
+  return d;
+}
+
+// ── Persistence ───────────────────────────────────────────────────────────────
+
+let data = { 1: {}, 2: {} };
+try {
+  const raw = localStorage.getItem(WEEK_KEY);
+  if (raw) data = JSON.parse(raw);
+} catch (_) {}
+
+function save() {
+  localStorage.setItem(WEEK_KEY, JSON.stringify(data));
+  // Remove old weeks automatically
+  for (const k of Object.keys(localStorage)) {
+    if (k.startsWith('ss_pickleball_') && k !== WEEK_KEY) {
+      localStorage.removeItem(k);
+    }
+  }
+}
+
+function getRes(court, dayIdx, hour) {
+  return (data[court][dayIdx] || {})[hour];
+}
+
+function setRes(court, dayIdx, hour, value) {
+  if (!data[court][dayIdx]) data[court][dayIdx] = {};
+  data[court][dayIdx][hour] = value;
+  save();
+}
+
+function delRes(court, dayIdx, hour) {
+  if (data[court][dayIdx]) delete data[court][dayIdx][hour];
+  save();
+}
+
+// ── Selected day ──────────────────────────────────────────────────────────────
+
+const todayDayIdx = (() => {
+  const d = new Date().getDay();
+  return d === 0 ? 6 : d - 1; // Mon=0 … Sun=6
+})();
+
+let selectedDay = todayDayIdx;
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+const timers = {};
+
+function timerKey(court, dayIdx, hour) { return `${court}_${dayIdx}_${hour}`; }
+
+function scheduleNotif(court, dayIdx, hour, res) {
+  if (!res || !res.notif) return;
+  const alertAt = slotDateTime(dayIdx, hour).getTime() - 30 * 60 * 1000;
+  const now     = Date.now();
+  if (alertAt <= now) return;
+
+  const key = timerKey(court, dayIdx, hour);
+  clearTimeout(timers[key]);
+  timers[key] = setTimeout(() => {
+    if (Notification.permission === 'granted') {
+      new Notification('SafeStreets Pickleball – 30 min reminder', {
+        body: `${res.firstName} ${res.lastName}, your Court ${court} slot starts at ${fmtHour(hour)} today!`
+      });
+    }
+  }, alertAt - now);
+}
+
+function cancelNotif(court, dayIdx, hour) {
+  const key = timerKey(court, dayIdx, hour);
+  clearTimeout(timers[key]);
+  delete timers[key];
+}
+
+function rescheduleAll() {
+  for (const court of [1, 2]) {
+    for (const [di, hours] of Object.entries(data[court])) {
+      for (const [h, res] of Object.entries(hours)) {
+        if (res) scheduleNotif(court, +di, +h, res);
+      }
+    }
+  }
+}
+
+function updateNotifBanner() {
+  const banner = document.getElementById('notifBanner');
+  if (!('Notification' in window) || Notification.permission !== 'default') {
+    banner.classList.add('hidden');
+  }
+}
+
+function enableNotifications() {
+  if (!('Notification' in window)) return;
+  Notification.requestPermission().then(() => {
+    updateNotifBanner();
+    rescheduleAll();
+  });
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+
+function buildDayTabs() {
+  const container = document.getElementById('dayTabs');
+  container.innerHTML = '';
+  for (let i = 0; i < 7; i++) {
+    const d   = dayDate(i);
+    const tab = document.createElement('div');
+    tab.className = 'day-tab' +
+      (i === selectedDay  ? ' active'    : '') +
+      (i === todayDayIdx  ? ' today-tab' : '');
+    tab.innerHTML = `<div class="day-name">${DAY_SHORT[i]}</div><div class="day-date">${d.getDate()}</div>`;
+    tab.addEventListener('click', () => { selectedDay = i; render(); });
+    container.appendChild(tab);
+  }
+}
+
+function buildSlots(court) {
+  const container = document.getElementById(`slots${court}`);
+  const freeEl    = document.getElementById(`free${court}`);
+  container.innerHTML = '';
+  let freeCount = 0;
+  const now = new Date();
+
+  HOURS.forEach(hour => {
+    const slotEnd = slotDateTime(selectedDay, hour + 1);
+    const isPast  = slotEnd <= now;
+    const res     = getRes(court, selectedDay, hour);
+    const isOpen  = !res;
+    if (isOpen && !isPast) freeCount++;
+
+    const slot = document.createElement('div');
+    slot.className = `slot ${isPast ? 'past' : isOpen ? 'open' : 'booked'}`;
+    slot.innerHTML = `
+      <span class="slot-time">${slotLabel(hour)}</span>
+      <span class="slot-status">${isOpen ? (isPast ? 'Elapsed' : 'Available') : `${res.firstName} ${res.lastName}`}</span>
+      <span class="slot-action">${isPast ? '' : isOpen ? 'Reserve →' : 'Cancel ✕'}</span>
+    `;
+    if (!isPast) {
+      slot.addEventListener('click', () => {
+        if (isOpen) openReserveModal(court, selectedDay, hour);
+        else        openCancelModal(court, selectedDay, hour, res);
+      });
+    }
+    container.appendChild(slot);
+  });
+
+  freeEl.textContent = `${freeCount} open`;
+}
+
+function render() {
+  buildDayTabs();
+  buildSlots(1);
+  buildSlots(2);
+}
+
+function buildWeekLabels() {
+  const end  = dayDate(6);
+  const opts = { month: 'short', day: 'numeric' };
+  const s    = WEEK_MONDAY.toLocaleDateString('en-US', opts);
+  const e    = end.toLocaleDateString('en-US', opts);
+  document.getElementById('weekLabel').textContent = `Week of ${s} – ${e}`;
+
+  const nextMonday = new Date(WEEK_MONDAY);
+  nextMonday.setDate(nextMonday.getDate() + 7);
+  const diff = Math.ceil((nextMonday - new Date()) / (1000 * 60 * 60 * 24));
+  document.getElementById('resetLabel').textContent = `Resets in ${diff} day${diff !== 1 ? 's' : ''}`;
+}
+
+// ── Modals ────────────────────────────────────────────────────────────────────
+
+function openReserveModal(court, dayIdx, hour) {
+  const notifAvail   = 'Notification' in window;
+  const notifGranted = notifAvail && Notification.permission === 'granted';
+
+  document.getElementById('modalTitle').textContent = `Reserve Court ${court}`;
+  document.getElementById('modalSub').textContent   =
+    `${DAY_NAMES[dayIdx]}, ${dayDate(dayIdx).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} · ${slotLabel(hour)}`;
+
+  document.getElementById('modalBody').innerHTML = `
+    <div class="form-row">
+      <div class="form-group">
+        <label for="firstNameInput">First Name</label>
+        <input type="text" id="firstNameInput" placeholder="Jane" maxlength="40" autocomplete="given-name" />
+      </div>
+      <div class="form-group">
+        <label for="lastNameInput">Last Name</label>
+        <input type="text" id="lastNameInput" placeholder="Smith" maxlength="40" autocomplete="family-name" />
+      </div>
+    </div>
+    ${notifAvail ? `
+    <div class="notif-opt">
+      <input type="checkbox" id="notifCheck" ${notifGranted ? 'checked' : ''} />
+      <label for="notifCheck">Remind me 30 minutes before via browser notification</label>
+    </div>` : ''}
+  `;
+
+  document.getElementById('modalActions').innerHTML = '';
+  const cancelBtn  = makeBtn('Cancel', 'btn-secondary', closeModal);
+  const confirmBtn = makeBtn('Reserve Slot', 'btn-primary', async () => {
+    const fn        = document.getElementById('firstNameInput');
+    const ln        = document.getElementById('lastNameInput');
+    const firstName = fn.value.trim();
+    const lastName  = ln.value.trim();
+    let valid = true;
+    if (!firstName) { fn.classList.add('error'); valid = false; } else fn.classList.remove('error');
+    if (!lastName)  { ln.classList.add('error'); valid = false; } else ln.classList.remove('error');
+    if (!valid) return;
+
+    const wantsNotif = notifAvail && document.getElementById('notifCheck')?.checked;
+    if (wantsNotif && Notification.permission !== 'granted') {
+      await Notification.requestPermission();
+    }
+
+    const res = { firstName, lastName, notif: wantsNotif };
+    setRes(court, dayIdx, hour, res);
+    scheduleNotif(court, dayIdx, hour, res);
+    updateNotifBanner();
+    render();
+    closeModal();
+  });
+
+  document.getElementById('modalActions').append(cancelBtn, confirmBtn);
+  document.getElementById('modalOverlay').classList.add('active');
+  setTimeout(() => document.getElementById('firstNameInput')?.focus(), 80);
+}
+
+function openCancelModal(court, dayIdx, hour, res) {
+  document.getElementById('modalTitle').textContent = 'Cancel Reservation';
+  document.getElementById('modalSub').textContent   =
+    `Court ${court} · ${DAY_NAMES[dayIdx]} · ${slotLabel(hour)}`;
+  document.getElementById('modalBody').innerHTML = `
+    <p style="font-size:.88rem;color:#555;line-height:1.5">
+      Currently reserved by <strong>${res.firstName} ${res.lastName}</strong>.<br>
+      Remove this reservation?
+    </p>
+  `;
+  document.getElementById('modalActions').innerHTML = '';
+
+  const keepBtn   = makeBtn('Keep It', 'btn-secondary', closeModal);
+  const removeBtn = makeBtn('Cancel Reservation', 'btn-danger', () => {
+    cancelNotif(court, dayIdx, hour);
+    delRes(court, dayIdx, hour);
+    render();
+    closeModal();
+  });
+
+  document.getElementById('modalActions').append(keepBtn, removeBtn);
+  document.getElementById('modalOverlay').classList.add('active');
+}
+
+function makeBtn(text, cls, handler) {
+  const b = document.createElement('button');
+  b.className = `btn ${cls}`;
+  b.textContent = text;
+  b.addEventListener('click', handler);
+  return b;
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('active');
+}
+
+document.getElementById('modalOverlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('modalOverlay')) closeModal();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+});
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+updateNotifBanner();
+buildWeekLabels();
+rescheduleAll();
+render();
+
+// Refresh every minute so past slots dim automatically
+setInterval(render, 60 * 1000);
+</script>
+</body>
+</html>
