@@ -2,13 +2,14 @@
 // FIREBASE IMPORTS  (CDN — no build step required)
 // =============================================================================
 
-import { initializeApp }                          from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getFirestore, doc, setDoc, updateDoc,
-         onSnapshot, deleteField }                from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
-import { FIREBASE_CONFIG }                        from './firebase-config.js';
+import { initializeApp }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getFirestore, doc, setDoc, updateDoc, onSnapshot, deleteField }
+  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { FIREBASE_CONFIG }
+  from './firebase-config.js';
 
-const firebaseApp = initializeApp(FIREBASE_CONFIG);
-const db          = getFirestore(firebaseApp);
+const db = getFirestore(initializeApp(FIREBASE_CONFIG));
 
 
 // =============================================================================
@@ -25,83 +26,182 @@ const COURTS    = [1, 2];
 // DATE / WEEK HELPERS
 // =============================================================================
 
-/** Returns the Monday of the week containing `date`, at midnight local time. */
 function getMondayOf(date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
-  const day = d.getDay();                            // 0=Sun … 6=Sat
+  const day = d.getDay();
   d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
   return d;
 }
 
-/** Returns YYYY-MM-DD for a Date object. */
-function isoDate(d) {
-  return d.toISOString().slice(0, 10);
-}
+function isoDate(d)               { return d.toISOString().slice(0, 10); }
+function dayDate(idx)             { const d = new Date(WEEK_MONDAY); d.setDate(d.getDate() + idx); return d; }
+function slotDateTime(dayIdx, h)  { const d = dayDate(dayIdx); d.setHours(h, 0, 0, 0); return d; }
 
-/** Returns the Date for `dayIdx` (0=Mon … 6=Sun) in the current week. */
-function dayDate(dayIdx) {
-  const d = new Date(WEEK_MONDAY);
-  d.setDate(d.getDate() + dayIdx);
-  return d;
-}
-
-/** Returns the Date for the start of a specific slot. */
-function slotDateTime(dayIdx, hour) {
-  const d = dayDate(dayIdx);
-  d.setHours(hour, 0, 0, 0);
-  return d;
-}
-
-/** Formats a 24h hour as "9:00 AM" or "2:00 PM". */
 function fmtHour(h) {
-  const period  = h < 12 ? 'AM' : 'PM';
-  const display = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${display}:00 ${period}`;
+  const p = h < 12 ? 'AM' : 'PM';
+  const d = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${d}:00 ${p}`;
 }
 
-/** Returns a time-range label, e.g. "9:00 AM – 10:00 AM". */
-function slotLabel(h) {
-  return `${fmtHour(h)} – ${fmtHour(h + 1)}`;
-}
+function slotLabel(h) { return `${fmtHour(h)} – ${fmtHour(h + 1)}`; }
 
-// Computed once on load
 const WEEK_MONDAY = getMondayOf(new Date());
-const WEEK_KEY    = isoDate(WEEK_MONDAY);           // e.g. "2026-06-16"
+const WEEK_KEY    = isoDate(WEEK_MONDAY);
 const weekDocRef  = doc(db, 'reservations', WEEK_KEY);
 
-const todayDayIdx = (() => {
-  const d = new Date().getDay();
-  return d === 0 ? 6 : d - 1;                       // Mon=0 … Sun=6
-})();
+const todayDayIdx = (() => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1; })();
 
 
 // =============================================================================
-// DEVICE ID  (used to scope notifications to the device that made the booking)
+// DEVICE ID  (scopes notifications to the reserving device)
 // =============================================================================
 
 const DEVICE_ID = (() => {
-  const key      = 'ss_deviceId';
-  const existing = localStorage.getItem(key);
-  if (existing) return existing;
-  const id = Math.random().toString(36).slice(2);
-  localStorage.setItem(key, id);
-  return id;
+  const k = 'ss_deviceId';
+  return localStorage.getItem(k) || (() => {
+    const id = Math.random().toString(36).slice(2);
+    localStorage.setItem(k, id);
+    return id;
+  })();
 })();
 
 
 // =============================================================================
-// STATE  (local cache — kept in sync by onSnapshot)
+// USER PROFILE
 // =============================================================================
 
-/**
- * data[court][dayIdx][hour] = { firstName, lastName, notif, deviceId } | undefined
- * This is a client-side mirror of the Firestore document.
- * Shape in Firestore: one flat map of "{court}_{dayIdx}_{hour}" → reservation object
- */
-let data = { 1: {}, 2: {} };
+const PROFILE_KEY = 'ss_profile';
 
-/** Which day tab is currently selected. */
+function loadProfile() {
+  try { return JSON.parse(localStorage.getItem(PROFILE_KEY)); } catch { return null; }
+}
+
+function saveProfile(profile) {
+  localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+}
+
+function getInitials(firstName, lastName) {
+  return `${firstName[0]}${lastName[0]}`.toUpperCase();
+}
+
+function applyProfileToHeader(profile) {
+  document.getElementById('userAvatar').textContent    = getInitials(profile.firstName, profile.lastName);
+  document.getElementById('userNameLabel').textContent = `${profile.firstName} ${profile.lastName}`;
+}
+
+/** Shows the welcome overlay and resolves when the user submits a valid profile. */
+function promptForProfile() {
+  return new Promise(resolve => {
+    const overlay = document.getElementById('welcomeOverlay');
+    overlay.classList.remove('hidden');
+
+    document.getElementById('profileSaveBtn').addEventListener('click', async () => {
+      const fn = document.getElementById('profileFirst');
+      const ln = document.getElementById('profileLast');
+      const firstName = fn.value.trim();
+      const lastName  = ln.value.trim();
+
+      fn.classList.toggle('error', !firstName);
+      ln.classList.toggle('error', !lastName);
+      if (!firstName || !lastName) return;
+
+      const wantsNotif = document.getElementById('profileNotif').checked;
+
+      if (wantsNotif) {
+        await Notification.requestPermission();
+      }
+
+      const profile = { firstName, lastName, notif: wantsNotif };
+      saveProfile(profile);
+      overlay.classList.add('hidden');
+      resolve(profile);
+    });
+  });
+}
+
+/** Opens the edit-profile modal. */
+function openEditProfileModal(currentProfile) {
+  setModal({
+    title: 'Edit Profile',
+    sub:   'Update your name or notification preference.',
+    body: `
+      <div class="form-row">
+        <div class="form-group">
+          <label for="editFirst">First Name</label>
+          <input type="text" id="editFirst" value="${currentProfile.firstName}"
+                 maxlength="40" autocomplete="given-name" />
+        </div>
+        <div class="form-group">
+          <label for="editLast">Last Name</label>
+          <input type="text" id="editLast" value="${currentProfile.lastName}"
+                 maxlength="40" autocomplete="family-name" />
+        </div>
+      </div>
+      ${'Notification' in window ? `
+        <div class="notif-opt">
+          <input type="checkbox" id="editNotif"
+                 ${currentProfile.notif && Notification.permission === 'granted' ? 'checked' : ''} />
+          <label for="editNotif">Remind me 30 minutes before my reservation via browser notification</label>
+        </div>` : ''}
+    `,
+    actions: [
+      makeBtn('Cancel', 'btn-secondary', closeModal),
+      makeBtn('Save', 'btn-primary', async () => {
+        const fn = document.getElementById('editFirst');
+        const ln = document.getElementById('editLast');
+        const firstName = fn.value.trim();
+        const lastName  = ln.value.trim();
+        fn.classList.toggle('error', !firstName);
+        ln.classList.toggle('error', !lastName);
+        if (!firstName || !lastName) return;
+
+        const wantsNotif = document.getElementById('editNotif')?.checked ?? false;
+        if (wantsNotif && Notification.permission !== 'granted') {
+          await Notification.requestPermission();
+        }
+
+        const updated = { firstName, lastName, notif: wantsNotif };
+        saveProfile(updated);
+        applyProfileToHeader(updated);
+        closeModal();
+        showToast('Profile updated.');
+      }),
+    ],
+  });
+}
+
+
+// =============================================================================
+// THEME
+// =============================================================================
+
+const THEME_KEY     = 'ss_theme';
+const html          = document.documentElement;
+const iconDark      = document.getElementById('themeIconDark');
+const iconLight     = document.getElementById('themeIconLight');
+
+function applyTheme(theme) {
+  html.setAttribute('data-theme', theme);
+  localStorage.setItem(THEME_KEY, theme);
+  const isDark = theme === 'dark';
+  iconDark.style.display  = isDark ? 'block' : 'none';
+  iconLight.style.display = isDark ? 'none'  : 'block';
+}
+
+function toggleTheme() {
+  applyTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+}
+
+document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+
+
+// =============================================================================
+// STATE
+// =============================================================================
+
+/** data[court][dayIdx][hour] = { firstName, lastName, notif, deviceId } */
+let data       = { 1: {}, 2: {} };
 let selectedDay = todayDayIdx;
 
 
@@ -109,72 +209,52 @@ let selectedDay = todayDayIdx;
 // FIRESTORE — REAL-TIME SYNC
 // =============================================================================
 
-/**
- * Converts the flat Firestore map into the nested data[court][dayIdx][hour] shape
- * and triggers a full re-render + notification reschedule.
- */
+/** Converts Firestore's flat map into the nested data shape and re-renders. */
 function applySnapshot(flatMap) {
   data = { 1: {}, 2: {} };
-
   for (const [key, res] of Object.entries(flatMap)) {
     const [court, dayIdx, hour] = key.split('_').map(Number);
-    if (!data[court])         data[court]         = {};
     if (!data[court][dayIdx]) data[court][dayIdx] = {};
     data[court][dayIdx][hour] = res;
   }
-
   rescheduleAll();
   render();
 }
 
-/** Starts listening for real-time updates from Firestore. */
 function startSync() {
-  onSnapshot(weekDocRef, (snap) => {
-    applySnapshot(snap.exists() ? snap.data() : {});
-  }, (err) => {
-    console.error('Firestore sync error:', err);
-    showToast('Connection error — check your network.', 'error');
-  });
+  onSnapshot(
+    weekDocRef,
+    snap => applySnapshot(snap.exists() ? snap.data() : {}),
+    err  => {
+      console.error('Firestore sync error:', err);
+      showToast('Connection error — check your network.', 'error');
+    }
+  );
 }
 
+function getRes(court, dayIdx, hour) { return (data[court][dayIdx] || {})[hour]; }
 
-// =============================================================================
-// FIRESTORE — WRITES
-// =============================================================================
-
-/** Optimistically updates the local cache and writes to Firestore. */
 async function setRes(court, dayIdx, hour, value) {
-  // Optimistic local update for instant UI response
   if (!data[court][dayIdx]) data[court][dayIdx] = {};
   data[court][dayIdx][hour] = value;
   render();
-
-  const key = `${court}_${dayIdx}_${hour}`;
   try {
-    await setDoc(weekDocRef, { [key]: value }, { merge: true });
+    await setDoc(weekDocRef, { [`${court}_${dayIdx}_${hour}`]: value }, { merge: true });
   } catch (err) {
-    console.error('Failed to save reservation:', err);
+    console.error('Save failed:', err);
     showToast('Could not save — please try again.', 'error');
   }
 }
 
-/** Optimistically removes from the local cache and deletes from Firestore. */
 async function delRes(court, dayIdx, hour) {
-  // Optimistic local update
   if (data[court][dayIdx]) delete data[court][dayIdx][hour];
   render();
-
-  const key = `${court}_${dayIdx}_${hour}`;
   try {
-    await updateDoc(weekDocRef, { [key]: deleteField() });
+    await updateDoc(weekDocRef, { [`${court}_${dayIdx}_${hour}`]: deleteField() });
   } catch (err) {
-    console.error('Failed to delete reservation:', err);
+    console.error('Delete failed:', err);
     showToast('Could not cancel — please try again.', 'error');
   }
-}
-
-function getRes(court, dayIdx, hour) {
-  return (data[court][dayIdx] || {})[hour];
 }
 
 
@@ -184,96 +264,50 @@ function getRes(court, dayIdx, hour) {
 
 const notifTimers = {};
 
-function timerKey(court, dayIdx, hour) {
-  return `${court}_${dayIdx}_${hour}`;
-}
+function timerKey(court, dayIdx, hour) { return `${court}_${dayIdx}_${hour}`; }
 
-/**
- * Schedules a browser notification 30 minutes before the slot.
- * Only fires on the device that originally made the booking (matched via deviceId).
- */
 function scheduleNotif(court, dayIdx, hour, res) {
-  if (!res || !res.notif)              return; // notification not requested
-  if (res.deviceId !== DEVICE_ID)      return; // not this device's booking
-
+  if (!res?.notif || res.deviceId !== DEVICE_ID) return;
   const alertAt = slotDateTime(dayIdx, hour).getTime() - 30 * 60 * 1000;
-  if (alertAt <= Date.now())           return; // slot already passed
+  if (alertAt <= Date.now()) return;
 
   const key = timerKey(court, dayIdx, hour);
   clearTimeout(notifTimers[key]);
-
   notifTimers[key] = setTimeout(() => {
     if (Notification.permission === 'granted') {
       new Notification('SafeStreets Pickleball – 30 min reminder', {
-        body: `${res.firstName} ${res.lastName}, your Court ${court} slot starts at ${fmtHour(hour)} today!`
+        body: `${res.firstName} ${res.lastName}, Court ${court} starts at ${fmtHour(hour)} today!`
       });
     }
   }, alertAt - Date.now());
 }
 
-/** Cancels any pending notification timer for a slot. */
 function cancelNotif(court, dayIdx, hour) {
-  const key = timerKey(court, dayIdx, hour);
-  clearTimeout(notifTimers[key]);
-  delete notifTimers[key];
+  clearTimeout(notifTimers[timerKey(court, dayIdx, hour)]);
+  delete notifTimers[timerKey(court, dayIdx, hour)];
 }
 
-/** Re-arms all future notification timers after a page load or sync. */
 function rescheduleAll() {
-  for (const court of COURTS) {
-    for (const [di, hours] of Object.entries(data[court])) {
-      for (const [h, res] of Object.entries(hours)) {
+  for (const court of COURTS)
+    for (const [di, hours] of Object.entries(data[court]))
+      for (const [h, res] of Object.entries(hours))
         if (res) scheduleNotif(court, +di, +h, res);
-      }
-    }
-  }
 }
-
-/** Hides the banner if permission has already been decided. */
-function updateNotifBanner() {
-  const pending = 'Notification' in window && Notification.permission === 'default';
-  document.getElementById('notifBanner').classList.toggle('hidden', !pending);
-}
-
-/** Called by the "Enable Reminders" button. Exposed globally for the HTML onclick. */
-function enableNotifications() {
-  if (!('Notification' in window)) return;
-  Notification.requestPermission().then(() => {
-    updateNotifBanner();
-    rescheduleAll();
-  });
-}
-window.enableNotifications = enableNotifications; // expose to inline HTML onclick
 
 
 // =============================================================================
-// TOAST  (lightweight status messages)
+// TOAST
 // =============================================================================
 
-function showToast(message, type = 'info') {
-  const existing = document.getElementById('toast');
-  if (existing) existing.remove();
-
-  const toast = document.createElement('div');
-  toast.id = 'toast';
-  toast.textContent = message;
-  Object.assign(toast.style, {
-    position:     'fixed',
-    bottom:       '24px',
-    left:         '50%',
-    transform:    'translateX(-50%)',
-    background:   type === 'error' ? '#e53935' : '#00d4e8',
-    color:        type === 'error' ? '#fff'    : '#000',
-    padding:      '10px 20px',
-    borderRadius: '8px',
-    fontWeight:   '700',
-    fontSize:     '0.85rem',
-    zIndex:       '999',
-    boxShadow:    '0 4px 20px rgba(0,0,0,0.4)',
-    animation:    'pop 0.18s ease-out',
-  });
-  document.body.appendChild(toast);
-  setTimeout(() => toast.remove(), 3500);
+function showToast(message, type = 'success') {
+  document.getElementById('toast')?.remove();
+  const t = document.createElement('div');
+  t.id = 'toast';
+  t.textContent = message;
+  t.style.background = type === 'error' ? '#e53935' : 'var(--cyan)';
+  t.style.color      = type === 'error' ? '#fff'    : '#000';
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3200);
 }
 
 
@@ -281,29 +315,33 @@ function showToast(message, type = 'info') {
 // RENDER
 // =============================================================================
 
-/** Rebuilds the Mon–Sun tab strip. */
+function buildWeekLabels() {
+  const fmt = { month: 'short', day: 'numeric' };
+  document.getElementById('weekLabel').textContent =
+    `Week of ${WEEK_MONDAY.toLocaleDateString('en-US', fmt)} – ${dayDate(6).toLocaleDateString('en-US', fmt)}`;
+
+  const nextMon  = new Date(WEEK_MONDAY);
+  nextMon.setDate(nextMon.getDate() + 7);
+  const diff = Math.ceil((nextMon - new Date()) / 864e5);
+  document.getElementById('resetLabel').textContent =
+    `Resets in ${diff} day${diff !== 1 ? 's' : ''}`;
+}
+
 function buildDayTabs() {
   const container = document.getElementById('dayTabs');
   container.innerHTML = '';
-
   for (let i = 0; i < 7; i++) {
     const tab = document.createElement('div');
-    tab.className = [
-      'day-tab',
-      i === selectedDay ? 'active'    : '',
-      i === todayDayIdx ? 'today-tab' : '',
+    tab.className = ['day-tab',
+      i === selectedDay  ? 'active'    : '',
+      i === todayDayIdx  ? 'today-tab' : '',
     ].filter(Boolean).join(' ');
-
-    tab.innerHTML = `
-      <div class="day-name">${DAY_SHORT[i]}</div>
-      <div class="day-date">${dayDate(i).getDate()}</div>
-    `;
+    tab.innerHTML = `<div class="day-name">${DAY_SHORT[i]}</div><div class="day-date">${dayDate(i).getDate()}</div>`;
     tab.addEventListener('click', () => { selectedDay = i; render(); });
     container.appendChild(tab);
   }
 }
 
-/** Rebuilds all 16 time slots for one court. */
 function buildSlots(court) {
   const container = document.getElementById(`slots${court}`);
   const freeEl    = document.getElementById(`free${court}`);
@@ -315,21 +353,16 @@ function buildSlots(court) {
     const isPast = slotDateTime(selectedDay, hour + 1) <= now;
     const res    = getRes(court, selectedDay, hour);
     const isOpen = !res;
-
     if (isOpen && !isPast) freeCount++;
 
     const slot = document.createElement('div');
     slot.className = `slot ${isPast ? 'past' : isOpen ? 'open' : 'booked'}`;
     slot.innerHTML = `
       <span class="slot-time">${slotLabel(hour)}</span>
-      <span class="slot-status">
-        ${isPast && isOpen ? 'Elapsed'
-          : isOpen         ? 'Available'
-                           : `${res.firstName} ${res.lastName}`}
-      </span>
-      <span class="slot-action">
-        ${isPast ? '' : isOpen ? 'Reserve →' : 'Cancel ✕'}
-      </span>
+      <span class="slot-status">${
+        isPast && isOpen ? 'Elapsed' : isOpen ? 'Available' : `${res.firstName} ${res.lastName}`
+      }</span>
+      <span class="slot-action">${isPast ? '' : isOpen ? 'Reserve →' : 'Cancel ✕'}</span>
     `;
 
     if (!isPast) {
@@ -339,28 +372,12 @@ function buildSlots(court) {
           : openCancelModal(court, selectedDay, hour, res)
       );
     }
-
     container.appendChild(slot);
   }
 
   freeEl.textContent = `${freeCount} open`;
 }
 
-/** Updates the week range label and "Resets in N days" badge. */
-function buildWeekLabels() {
-  const fmt   = { month: 'short', day: 'numeric' };
-  const start = WEEK_MONDAY.toLocaleDateString('en-US', fmt);
-  const end   = dayDate(6).toLocaleDateString('en-US', fmt);
-  document.getElementById('weekLabel').textContent = `Week of ${start} – ${end}`;
-
-  const nextMonday = new Date(WEEK_MONDAY);
-  nextMonday.setDate(nextMonday.getDate() + 7);
-  const daysLeft = Math.ceil((nextMonday - new Date()) / (1000 * 60 * 60 * 24));
-  document.getElementById('resetLabel').textContent =
-    `Resets in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`;
-}
-
-/** Full re-render: tabs + both courts. */
 function render() {
   buildDayTabs();
   buildSlots(1);
@@ -372,8 +389,8 @@ function render() {
 // MODALS
 // =============================================================================
 
-/** Opens the reservation form for an available slot. */
 function openReserveModal(court, dayIdx, hour) {
+  const profile      = loadProfile();
   const notifAvail   = 'Notification' in window;
   const notifGranted = notifAvail && Notification.permission === 'granted';
   const dateStr      = dayDate(dayIdx).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -384,61 +401,63 @@ function openReserveModal(court, dayIdx, hour) {
     body: `
       <div class="form-row">
         <div class="form-group">
-          <label for="firstNameInput">First Name</label>
-          <input type="text" id="firstNameInput" placeholder="Jane"
-                 maxlength="40" autocomplete="given-name" />
+          <label for="resFirst">First Name</label>
+          <input type="text" id="resFirst" placeholder="Jane"
+                 maxlength="40" autocomplete="given-name"
+                 value="${profile?.firstName ?? ''}" />
         </div>
         <div class="form-group">
-          <label for="lastNameInput">Last Name</label>
-          <input type="text" id="lastNameInput" placeholder="Smith"
-                 maxlength="40" autocomplete="family-name" />
+          <label for="resLast">Last Name</label>
+          <input type="text" id="resLast" placeholder="Smith"
+                 maxlength="40" autocomplete="family-name"
+                 value="${profile?.lastName ?? ''}" />
         </div>
       </div>
       ${notifAvail ? `
         <div class="notif-opt">
-          <input type="checkbox" id="notifCheck" ${notifGranted ? 'checked' : ''} />
-          <label for="notifCheck">Remind me 30 minutes before via browser notification</label>
+          <input type="checkbox" id="resNotif"
+                 ${profile?.notif && notifGranted ? 'checked' : ''} />
+          <label for="resNotif">Remind me 30 minutes before via browser notification</label>
         </div>` : ''}
     `,
     actions: [
       makeBtn('Cancel', 'btn-secondary', closeModal),
       makeBtn('Reserve Slot', 'btn-primary', async () => {
-        const fn = document.getElementById('firstNameInput');
-        const ln = document.getElementById('lastNameInput');
-
+        const fn = document.getElementById('resFirst');
+        const ln = document.getElementById('resLast');
         const firstName = fn.value.trim();
         const lastName  = ln.value.trim();
         fn.classList.toggle('error', !firstName);
         ln.classList.toggle('error', !lastName);
         if (!firstName || !lastName) return;
 
-        const wantsNotif = notifAvail && document.getElementById('notifCheck')?.checked;
-        if (wantsNotif && Notification.permission !== 'granted') {
-          await Notification.requestPermission();
-        }
+        const wantsNotif = notifAvail && document.getElementById('resNotif')?.checked;
+        if (wantsNotif && Notification.permission !== 'granted') await Notification.requestPermission();
 
         const res = { firstName, lastName, notif: wantsNotif, deviceId: DEVICE_ID };
         closeModal();
         await setRes(court, dayIdx, hour, res);
         scheduleNotif(court, dayIdx, hour, res);
-        updateNotifBanner();
         showToast(`Booked for ${firstName} ${lastName}!`);
       }),
     ],
   });
 
-  setTimeout(() => document.getElementById('firstNameInput')?.focus(), 80);
+  setTimeout(() => {
+    const el = document.getElementById('resFirst');
+    if (!el?.value) el?.focus();
+    else document.getElementById('resLast')?.focus?.();
+  }, 80);
 }
 
-/** Opens the cancellation confirmation for a reserved slot. */
 function openCancelModal(court, dayIdx, hour, res) {
   setModal({
     title: 'Cancel Reservation',
     sub:   `Court ${court} · ${DAY_NAMES[dayIdx]} · ${slotLabel(hour)}`,
     body: `
-      <p style="font-size:.86rem; color:#888; line-height:1.6">
+      <p style="font-size:.86rem;color:var(--text-dim);line-height:1.6">
         Currently reserved by
-        <strong style="color:#e8e8e8">${res.firstName} ${res.lastName}</strong>.<br>
+        <strong style="color:var(--text)">${res.firstName} ${res.lastName}</strong>.<br>
         Remove this reservation?
       </p>
     `,
@@ -454,16 +473,13 @@ function openCancelModal(court, dayIdx, hour, res) {
   });
 }
 
-/** Populates and opens the shared modal shell. */
 function setModal({ title, sub, body, actions }) {
   document.getElementById('modalTitle').textContent = title;
   document.getElementById('modalSub').textContent   = sub;
   document.getElementById('modalBody').innerHTML    = body;
-
-  const actionsEl = document.getElementById('modalActions');
-  actionsEl.innerHTML = '';
-  actions.forEach(btn => actionsEl.appendChild(btn));
-
+  const el = document.getElementById('modalActions');
+  el.innerHTML = '';
+  actions.forEach(b => el.appendChild(b));
   document.getElementById('modalOverlay').classList.add('active');
 }
 
@@ -471,32 +487,45 @@ function closeModal() {
   document.getElementById('modalOverlay').classList.remove('active');
 }
 
-/** Creates a styled <button> element. */
 function makeBtn(text, cls, handler) {
-  const btn = document.createElement('button');
-  btn.className   = `btn ${cls}`;
-  btn.textContent = text;
-  btn.addEventListener('click', handler);
-  return btn;
+  const b = document.createElement('button');
+  b.className = `btn ${cls}`;
+  b.textContent = text;
+  b.addEventListener('click', handler);
+  return b;
 }
 
-// Close modal on backdrop click or Escape key
 document.getElementById('modalOverlay').addEventListener('click', e => {
   if (e.target === document.getElementById('modalOverlay')) closeModal();
 });
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') closeModal();
-});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
 
 // =============================================================================
 // INIT
 // =============================================================================
 
-updateNotifBanner();   // hide banner if permission already decided
-buildWeekLabels();     // week range + reset countdown
-render();              // initial render with empty data while Firestore loads
-startSync();           // open real-time Firestore listener (fills data + re-renders)
+(async () => {
+  // 1. Apply saved theme
+  applyTheme(localStorage.getItem(THEME_KEY) || 'dark');
 
-// Re-render every minute so past slots dim automatically
-setInterval(render, 60 * 1000);
+  // 2. Ensure user has a profile (blocks until submitted if first visit)
+  let profile = loadProfile();
+  if (!profile) {
+    profile = await promptForProfile();
+  }
+  applyProfileToHeader(profile);
+
+  // 3. Wire up profile pill click → edit modal
+  document.getElementById('userPill').addEventListener('click', () => {
+    openEditProfileModal(loadProfile());
+  });
+
+  // 4. Render skeleton immediately, then open Firestore listener
+  buildWeekLabels();
+  render();
+  startSync();
+
+  // Re-render every minute so past slots dim automatically
+  setInterval(render, 60 * 1000);
+})();
