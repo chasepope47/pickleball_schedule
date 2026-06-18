@@ -1,6 +1,19 @@
-/* =============================================================================
-   CONSTANTS
-   ============================================================================= */
+// =============================================================================
+// FIREBASE IMPORTS  (CDN — no build step required)
+// =============================================================================
+
+import { initializeApp }                          from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getFirestore, doc, setDoc, updateDoc,
+         onSnapshot, deleteField }                from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import { FIREBASE_CONFIG }                        from './firebase-config.js';
+
+const firebaseApp = initializeApp(FIREBASE_CONFIG);
+const db          = getFirestore(firebaseApp);
+
+
+// =============================================================================
+// CONSTANTS
+// =============================================================================
 
 const HOURS     = Array.from({ length: 16 }, (_, i) => i + 6); // 6 AM – 9 PM
 const DAY_NAMES = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
@@ -8,87 +21,155 @@ const DAY_SHORT = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 const COURTS    = [1, 2];
 
 
-/* =============================================================================
-   DATE / WEEK HELPERS
-   ============================================================================= */
+// =============================================================================
+// DATE / WEEK HELPERS
+// =============================================================================
 
-/** Returns the Monday of the week containing `date`, at midnight. */
+/** Returns the Monday of the week containing `date`, at midnight local time. */
 function getMondayOf(date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
-  const day = d.getDay();                          // 0=Sun … 6=Sat
+  const day = d.getDay();                            // 0=Sun … 6=Sat
   d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
   return d;
 }
 
-/** Returns a YYYY-MM-DD string for `d`. */
+/** Returns YYYY-MM-DD for a Date object. */
 function isoDate(d) {
   return d.toISOString().slice(0, 10);
 }
 
-/** Returns the Date object for `dayIdx` (0=Mon … 6=Sun) in the current week. */
+/** Returns the Date for `dayIdx` (0=Mon … 6=Sun) in the current week. */
 function dayDate(dayIdx) {
   const d = new Date(WEEK_MONDAY);
   d.setDate(d.getDate() + dayIdx);
   return d;
 }
 
-/** Returns the Date object for the start of a specific slot. */
+/** Returns the Date for the start of a specific slot. */
 function slotDateTime(dayIdx, hour) {
   const d = dayDate(dayIdx);
   d.setHours(hour, 0, 0, 0);
   return d;
 }
 
-/** Formats a 24h hour as "9:00 AM" / "2:00 PM". */
+/** Formats a 24h hour as "9:00 AM" or "2:00 PM". */
 function fmtHour(h) {
   const period  = h < 12 ? 'AM' : 'PM';
   const display = h === 0 ? 12 : h > 12 ? h - 12 : h;
   return `${display}:00 ${period}`;
 }
 
-/** Returns a formatted time range label, e.g. "9:00 AM – 10:00 AM". */
+/** Returns a time-range label, e.g. "9:00 AM – 10:00 AM". */
 function slotLabel(h) {
   return `${fmtHour(h)} – ${fmtHour(h + 1)}`;
 }
 
-// Computed once on load — never changes during the session
-const WEEK_MONDAY   = getMondayOf(new Date());
-const WEEK_KEY      = 'ss_pickleball_' + isoDate(WEEK_MONDAY);
-const todayDayIdx   = (() => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1; })();
+// Computed once on load
+const WEEK_MONDAY = getMondayOf(new Date());
+const WEEK_KEY    = isoDate(WEEK_MONDAY);           // e.g. "2026-06-16"
+const weekDocRef  = doc(db, 'reservations', WEEK_KEY);
+
+const todayDayIdx = (() => {
+  const d = new Date().getDay();
+  return d === 0 ? 6 : d - 1;                       // Mon=0 … Sun=6
+})();
 
 
-/* =============================================================================
-   STATE
-   ============================================================================= */
+// =============================================================================
+// DEVICE ID  (used to scope notifications to the device that made the booking)
+// =============================================================================
 
-/** Which day tab is currently selected (0=Mon … 6=Sun). */
-let selectedDay = todayDayIdx;
+const DEVICE_ID = (() => {
+  const key      = 'ss_deviceId';
+  const existing = localStorage.getItem(key);
+  if (existing) return existing;
+  const id = Math.random().toString(36).slice(2);
+  localStorage.setItem(key, id);
+  return id;
+})();
 
 
-/* =============================================================================
-   PERSISTENCE  (localStorage, keyed by week)
-   ============================================================================= */
+// =============================================================================
+// STATE  (local cache — kept in sync by onSnapshot)
+// =============================================================================
 
 /**
- * Data shape:
- *   data[court][dayIdx][hour] = { firstName, lastName, notif } | undefined
+ * data[court][dayIdx][hour] = { firstName, lastName, notif, deviceId } | undefined
+ * This is a client-side mirror of the Firestore document.
+ * Shape in Firestore: one flat map of "{court}_{dayIdx}_{hour}" → reservation object
  */
 let data = { 1: {}, 2: {} };
 
-try {
-  const raw = localStorage.getItem(WEEK_KEY);
-  if (raw) data = JSON.parse(raw);
-} catch (_) {}
+/** Which day tab is currently selected. */
+let selectedDay = todayDayIdx;
 
-/** Saves current week's data and removes any previous weeks. */
-function save() {
-  localStorage.setItem(WEEK_KEY, JSON.stringify(data));
 
-  for (const key of Object.keys(localStorage)) {
-    if (key.startsWith('ss_pickleball_') && key !== WEEK_KEY) {
-      localStorage.removeItem(key);
-    }
+// =============================================================================
+// FIRESTORE — REAL-TIME SYNC
+// =============================================================================
+
+/**
+ * Converts the flat Firestore map into the nested data[court][dayIdx][hour] shape
+ * and triggers a full re-render + notification reschedule.
+ */
+function applySnapshot(flatMap) {
+  data = { 1: {}, 2: {} };
+
+  for (const [key, res] of Object.entries(flatMap)) {
+    const [court, dayIdx, hour] = key.split('_').map(Number);
+    if (!data[court])         data[court]         = {};
+    if (!data[court][dayIdx]) data[court][dayIdx] = {};
+    data[court][dayIdx][hour] = res;
+  }
+
+  rescheduleAll();
+  render();
+}
+
+/** Starts listening for real-time updates from Firestore. */
+function startSync() {
+  onSnapshot(weekDocRef, (snap) => {
+    applySnapshot(snap.exists() ? snap.data() : {});
+  }, (err) => {
+    console.error('Firestore sync error:', err);
+    showToast('Connection error — check your network.', 'error');
+  });
+}
+
+
+// =============================================================================
+// FIRESTORE — WRITES
+// =============================================================================
+
+/** Optimistically updates the local cache and writes to Firestore. */
+async function setRes(court, dayIdx, hour, value) {
+  // Optimistic local update for instant UI response
+  if (!data[court][dayIdx]) data[court][dayIdx] = {};
+  data[court][dayIdx][hour] = value;
+  render();
+
+  const key = `${court}_${dayIdx}_${hour}`;
+  try {
+    await setDoc(weekDocRef, { [key]: value }, { merge: true });
+  } catch (err) {
+    console.error('Failed to save reservation:', err);
+    showToast('Could not save — please try again.', 'error');
+  }
+}
+
+/** Optimistically removes from the local cache and deletes from Firestore. */
+async function delRes(court, dayIdx, hour) {
+  // Optimistic local update
+  if (data[court][dayIdx]) delete data[court][dayIdx][hour];
+  render();
+
+  const key = `${court}_${dayIdx}_${hour}`;
+  try {
+    await updateDoc(weekDocRef, { [key]: deleteField() });
+  } catch (err) {
+    console.error('Failed to delete reservation:', err);
+    showToast('Could not cancel — please try again.', 'error');
   }
 }
 
@@ -96,21 +177,10 @@ function getRes(court, dayIdx, hour) {
   return (data[court][dayIdx] || {})[hour];
 }
 
-function setRes(court, dayIdx, hour, value) {
-  if (!data[court][dayIdx]) data[court][dayIdx] = {};
-  data[court][dayIdx][hour] = value;
-  save();
-}
 
-function delRes(court, dayIdx, hour) {
-  if (data[court][dayIdx]) delete data[court][dayIdx][hour];
-  save();
-}
-
-
-/* =============================================================================
-   NOTIFICATIONS
-   ============================================================================= */
+// =============================================================================
+// NOTIFICATIONS
+// =============================================================================
 
 const notifTimers = {};
 
@@ -118,12 +188,16 @@ function timerKey(court, dayIdx, hour) {
   return `${court}_${dayIdx}_${hour}`;
 }
 
-/** Schedules a browser notification 30 minutes before the slot starts. */
+/**
+ * Schedules a browser notification 30 minutes before the slot.
+ * Only fires on the device that originally made the booking (matched via deviceId).
+ */
 function scheduleNotif(court, dayIdx, hour, res) {
-  if (!res || !res.notif) return;
+  if (!res || !res.notif)              return; // notification not requested
+  if (res.deviceId !== DEVICE_ID)      return; // not this device's booking
 
   const alertAt = slotDateTime(dayIdx, hour).getTime() - 30 * 60 * 1000;
-  if (alertAt <= Date.now()) return;
+  if (alertAt <= Date.now())           return; // slot already passed
 
   const key = timerKey(court, dayIdx, hour);
   clearTimeout(notifTimers[key]);
@@ -137,14 +211,14 @@ function scheduleNotif(court, dayIdx, hour, res) {
   }, alertAt - Date.now());
 }
 
-/** Cancels any pending notification for a slot. */
+/** Cancels any pending notification timer for a slot. */
 function cancelNotif(court, dayIdx, hour) {
   const key = timerKey(court, dayIdx, hour);
   clearTimeout(notifTimers[key]);
   delete notifTimers[key];
 }
 
-/** Re-schedules notifications for all existing reservations (called on page load). */
+/** Re-arms all future notification timers after a page load or sync. */
 function rescheduleAll() {
   for (const court of COURTS) {
     for (const [di, hours] of Object.entries(data[court])) {
@@ -155,14 +229,13 @@ function rescheduleAll() {
   }
 }
 
-/** Hides the banner if permission is already granted or unavailable. */
+/** Hides the banner if permission has already been decided. */
 function updateNotifBanner() {
-  const supported = 'Notification' in window;
-  const pending   = supported && Notification.permission === 'default';
+  const pending = 'Notification' in window && Notification.permission === 'default';
   document.getElementById('notifBanner').classList.toggle('hidden', !pending);
 }
 
-/** Called by the "Enable Reminders" button in the banner. */
+/** Called by the "Enable Reminders" button. Exposed globally for the HTML onclick. */
 function enableNotifications() {
   if (!('Notification' in window)) return;
   Notification.requestPermission().then(() => {
@@ -170,11 +243,43 @@ function enableNotifications() {
     rescheduleAll();
   });
 }
+window.enableNotifications = enableNotifications; // expose to inline HTML onclick
 
 
-/* =============================================================================
-   RENDER
-   ============================================================================= */
+// =============================================================================
+// TOAST  (lightweight status messages)
+// =============================================================================
+
+function showToast(message, type = 'info') {
+  const existing = document.getElementById('toast');
+  if (existing) existing.remove();
+
+  const toast = document.createElement('div');
+  toast.id = 'toast';
+  toast.textContent = message;
+  Object.assign(toast.style, {
+    position:     'fixed',
+    bottom:       '24px',
+    left:         '50%',
+    transform:    'translateX(-50%)',
+    background:   type === 'error' ? '#e53935' : '#00d4e8',
+    color:        type === 'error' ? '#fff'    : '#000',
+    padding:      '10px 20px',
+    borderRadius: '8px',
+    fontWeight:   '700',
+    fontSize:     '0.85rem',
+    zIndex:       '999',
+    boxShadow:    '0 4px 20px rgba(0,0,0,0.4)',
+    animation:    'pop 0.18s ease-out',
+  });
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 3500);
+}
+
+
+// =============================================================================
+// RENDER
+// =============================================================================
 
 /** Rebuilds the Mon–Sun tab strip. */
 function buildDayTabs() {
@@ -185,9 +290,9 @@ function buildDayTabs() {
     const tab = document.createElement('div');
     tab.className = [
       'day-tab',
-      i === selectedDay  ? 'active'    : '',
-      i === todayDayIdx  ? 'today-tab' : '',
-    ].join(' ').trim();
+      i === selectedDay ? 'active'    : '',
+      i === todayDayIdx ? 'today-tab' : '',
+    ].filter(Boolean).join(' ');
 
     tab.innerHTML = `
       <div class="day-name">${DAY_SHORT[i]}</div>
@@ -218,11 +323,9 @@ function buildSlots(court) {
     slot.innerHTML = `
       <span class="slot-time">${slotLabel(hour)}</span>
       <span class="slot-status">
-        ${isPast && isOpen
-          ? 'Elapsed'
-          : isOpen
-            ? 'Available'
-            : `${res.firstName} ${res.lastName}`}
+        ${isPast && isOpen ? 'Elapsed'
+          : isOpen         ? 'Available'
+                           : `${res.firstName} ${res.lastName}`}
       </span>
       <span class="slot-action">
         ${isPast ? '' : isOpen ? 'Reserve →' : 'Cancel ✕'}
@@ -243,9 +346,9 @@ function buildSlots(court) {
   freeEl.textContent = `${freeCount} open`;
 }
 
-/** Updates the week label and "Resets in N days" badge. */
+/** Updates the week range label and "Resets in N days" badge. */
 function buildWeekLabels() {
-  const fmt  = { month: 'short', day: 'numeric' };
+  const fmt   = { month: 'short', day: 'numeric' };
   const start = WEEK_MONDAY.toLocaleDateString('en-US', fmt);
   const end   = dayDate(6).toLocaleDateString('en-US', fmt);
   document.getElementById('weekLabel').textContent = `Week of ${start} – ${end}`;
@@ -265,16 +368,15 @@ function render() {
 }
 
 
-/* =============================================================================
-   MODALS
-   ============================================================================= */
+// =============================================================================
+// MODALS
+// =============================================================================
 
-/** Opens the reservation form for an empty slot. */
+/** Opens the reservation form for an available slot. */
 function openReserveModal(court, dayIdx, hour) {
   const notifAvail   = 'Notification' in window;
   const notifGranted = notifAvail && Notification.permission === 'granted';
-
-  const dateStr = dayDate(dayIdx).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const dateStr      = dayDate(dayIdx).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
   setModal({
     title: `Reserve Court ${court}`,
@@ -304,25 +406,23 @@ function openReserveModal(court, dayIdx, hour) {
         const fn = document.getElementById('firstNameInput');
         const ln = document.getElementById('lastNameInput');
 
-        // Validate both fields
         const firstName = fn.value.trim();
         const lastName  = ln.value.trim();
         fn.classList.toggle('error', !firstName);
         ln.classList.toggle('error', !lastName);
         if (!firstName || !lastName) return;
 
-        // Request notification permission if needed
         const wantsNotif = notifAvail && document.getElementById('notifCheck')?.checked;
         if (wantsNotif && Notification.permission !== 'granted') {
           await Notification.requestPermission();
         }
 
-        const res = { firstName, lastName, notif: wantsNotif };
-        setRes(court, dayIdx, hour, res);
+        const res = { firstName, lastName, notif: wantsNotif, deviceId: DEVICE_ID };
+        closeModal();
+        await setRes(court, dayIdx, hour, res);
         scheduleNotif(court, dayIdx, hour, res);
         updateNotifBanner();
-        render();
-        closeModal();
+        showToast(`Booked for ${firstName} ${lastName}!`);
       }),
     ],
   });
@@ -344,11 +444,11 @@ function openCancelModal(court, dayIdx, hour, res) {
     `,
     actions: [
       makeBtn('Keep It', 'btn-secondary', closeModal),
-      makeBtn('Cancel Reservation', 'btn-danger', () => {
+      makeBtn('Cancel Reservation', 'btn-danger', async () => {
         cancelNotif(court, dayIdx, hour);
-        delRes(court, dayIdx, hour);
-        render();
         closeModal();
+        await delRes(court, dayIdx, hour);
+        showToast('Reservation cancelled.');
       }),
     ],
   });
@@ -389,14 +489,14 @@ document.addEventListener('keydown', e => {
 });
 
 
-/* =============================================================================
-   INIT
-   ============================================================================= */
+// =============================================================================
+// INIT
+// =============================================================================
 
 updateNotifBanner();   // hide banner if permission already decided
-buildWeekLabels();     // set week range + reset countdown
-rescheduleAll();       // re-arm any existing notification timers
-render();              // draw tabs and slots
+buildWeekLabels();     // week range + reset countdown
+render();              // initial render with empty data while Firestore loads
+startSync();           // open real-time Firestore listener (fills data + re-renders)
 
 // Re-render every minute so past slots dim automatically
 setInterval(render, 60 * 1000);
