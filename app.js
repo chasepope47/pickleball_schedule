@@ -90,6 +90,12 @@ function applyProfileToHeader(profile) {
   document.getElementById('userNameLabel').textContent = `${profile.firstName} ${profile.lastName}`;
 }
 
+/** Clears the saved profile and reloads so the welcome screen appears fresh. */
+function logout() {
+  try { localStorage.removeItem(PROFILE_KEY); } catch (_) {}
+  location.reload();
+}
+
 /** Shows the welcome overlay and resolves when the user submits a valid profile.
  *  Fully synchronous — no Notification API calls so no browser can hang it. */
 function promptForProfile() {
@@ -115,11 +121,11 @@ function promptForProfile() {
   });
 }
 
-/** Opens the edit-profile modal. */
+/** Opens the edit-profile modal with name editing and a logout option. */
 function openEditProfileModal(currentProfile) {
   setModal({
-    title: 'Edit Profile',
-    sub:   'Update your name or notification preference.',
+    title: 'My Profile',
+    sub:   'Update your name or sign out.',
     body: `
       <div class="form-row">
         <div class="form-group">
@@ -139,10 +145,12 @@ function openEditProfileModal(currentProfile) {
                  ${currentProfile.notif && Notification.permission === 'granted' ? 'checked' : ''} />
           <label for="editNotif">Remind me 30 minutes before my reservation via browser notification</label>
         </div>` : ''}
+      <hr class="modal-divider" />
+      <button class="btn-logout" id="logoutBtn">Sign Out</button>
     `,
     actions: [
       makeBtn('Cancel', 'btn-secondary', closeModal),
-      makeBtn('Save', 'btn-primary', async () => {
+      makeBtn('Save Changes', 'btn-primary', async () => {
         const fn = document.getElementById('editFirst');
         const ln = document.getElementById('editLast');
         const firstName = fn.value.trim();
@@ -153,7 +161,7 @@ function openEditProfileModal(currentProfile) {
 
         const wantsNotif = document.getElementById('editNotif')?.checked ?? false;
         if (wantsNotif && Notification.permission !== 'granted') {
-          await Notification.requestPermission();
+          try { await Notification.requestPermission(); } catch (_) {}
         }
 
         const updated = { firstName, lastName, notif: wantsNotif };
@@ -163,6 +171,12 @@ function openEditProfileModal(currentProfile) {
         showToast('Profile updated.');
       }),
     ],
+  });
+
+  // Wire logout button after modal HTML is injected
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    closeModal();
+    logout();
   });
 }
 
@@ -345,28 +359,38 @@ function buildSlots(court) {
   const now = new Date();
 
   for (const hour of HOURS) {
-    const isPast = slotDateTime(selectedDay, hour + 1) <= now;
-    const res    = getRes(court, selectedDay, hour);
-    const isOpen = !res;
+    const isPast  = slotDateTime(selectedDay, hour + 1) <= now;
+    const res     = getRes(court, selectedDay, hour);
+    const isOpen  = !res;
+    const isMine  = res?.deviceId === DEVICE_ID; // only true for the device that booked it
+
     if (isOpen && !isPast) freeCount++;
 
+    // Three booked states: mine (cancellable), someone else's (locked), or open
+    const stateClass = isPast   ? 'past'
+                     : isOpen   ? 'open'
+                     : isMine   ? 'booked-mine'
+                                : 'booked-other';
+
+    const actionText = isPast   ? ''
+                     : isOpen   ? 'Reserve →'
+                     : isMine   ? 'Cancel ✕'
+                                : '🔒 Reserved';
+
     const slot = document.createElement('div');
-    slot.className = `slot ${isPast ? 'past' : isOpen ? 'open' : 'booked'}`;
+    slot.className = `slot ${stateClass}`;
     slot.innerHTML = `
       <span class="slot-time">${slotLabel(hour)}</span>
       <span class="slot-status">${
         isPast && isOpen ? 'Elapsed' : isOpen ? 'Available' : `${res.firstName} ${res.lastName}`
       }</span>
-      <span class="slot-action">${isPast ? '' : isOpen ? 'Reserve →' : 'Cancel ✕'}</span>
+      <span class="slot-action">${actionText}</span>
     `;
 
-    if (!isPast) {
-      slot.addEventListener('click', () =>
-        isOpen
-          ? openReserveModal(court, selectedDay, hour)
-          : openCancelModal(court, selectedDay, hour, res)
-      );
-    }
+    // Only open/mine slots are interactive
+    if (!isPast && isOpen)  slot.addEventListener('click', () => openReserveModal(court, selectedDay, hour));
+    if (!isPast && isMine)  slot.addEventListener('click', () => openCancelModal(court, selectedDay, hour, res));
+
     container.appendChild(slot);
   }
 
