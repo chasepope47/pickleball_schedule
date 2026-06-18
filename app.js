@@ -513,6 +513,8 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
   let profile = loadProfile();
   if (!profile) {
     profile = await promptForProfile();
+  } else {
+    document.getElementById('welcomeOverlay').classList.add('hidden');
   }
   applyProfileToHeader(profile);
 
