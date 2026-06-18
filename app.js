@@ -32,6 +32,16 @@ const RATINGS = [
   [5.0, '5.0 – Professional'],
 ];
 
+// Reusable waiver body HTML (rendered inside a .waiver-box)
+const WAIVER_BODY_HTML = `
+  <p class="waiver-title">Waiver &amp; Release of Liability</p>
+  <p><strong>Assumption of Risk.</strong> Pickleball is a physical sport. I understand that participation involves inherent risks including, but not limited to, physical exertion, falls, collisions with other players or equipment, muscle strains, joint injuries, and other bodily harm.</p>
+  <p><strong>Release of Liability.</strong> I, on behalf of myself, my heirs, and personal representatives, voluntarily release, waive, and discharge SafeStreets, its officers, employees, and agents from any and all liability, claims, or demands arising from my participation in pickleball activities at their facilities.</p>
+  <p><strong>Health Acknowledgment.</strong> I confirm I am in adequate physical condition to participate in this activity. I understand it is my responsibility to consult a physician before participating if I have any health concerns.</p>
+  <p><strong>Facility Rules.</strong> I agree to follow all facility rules, court etiquette, and instructions of facility staff, and to treat all participants with respect.</p>
+  <p>This agreement is effective for all court reservations made through the SafeStreets scheduling system.</p>
+`;
+
 
 // =============================================================================
 // DATE / WEEK HELPERS
@@ -130,8 +140,21 @@ function promptForProfile() {
       ln.classList.toggle('error', !lastName);
       if (!firstName || !lastName) return;
 
+      // Require waiver agreement
+      const waiverCb    = document.getElementById('profileWaiver');
+      const waiverLabel = document.getElementById('waiverCheckLabel');
+      const waiverBox   = document.getElementById('waiverBox');
+      if (!waiverCb.checked) {
+        waiverLabel.classList.add('error');
+        waiverBox.classList.add('error');
+        waiverBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        return;
+      }
+      waiverLabel.classList.remove('error');
+      waiverBox.classList.remove('error');
+
       const rating  = parseFloat(document.getElementById('profileRating').value) || 3.0;
-      const profile = { firstName, lastName, rating, wins: 0, losses: 0, notif: false };
+      const profile = { firstName, lastName, rating, wins: 0, losses: 0, notif: false, waiverSigned: true };
       saveProfile(profile);
       overlay.classList.add('hidden');
       resolve(profile);
@@ -555,8 +578,59 @@ function playerRowHtml(p, isMe) {
   `;
 }
 
+// ── Waiver gate ──
+
+/** Opens a modal for users who missed the waiver on the welcome screen. */
+function openWaiverModal(onSigned) {
+  setModal({
+    title: 'Waiver Required',
+    sub:   'You must agree before reserving or joining a court.',
+    body: `
+      <div class="waiver-box" id="modalWaiverBox" style="max-height:220px">
+        ${WAIVER_BODY_HTML}
+      </div>
+      <label class="waiver-check" id="modalWaiverLabel" style="margin-top:12px">
+        <input type="checkbox" id="modalWaiverCb" />
+        <span>I have read and agree to the Waiver &amp; Release of Liability</span>
+      </label>
+    `,
+    actions: [
+      makeBtn('Cancel', 'btn-secondary', closeModal),
+      makeBtn('Sign & Continue', 'btn-primary', () => {
+        const cb    = document.getElementById('modalWaiverCb');
+        const label = document.getElementById('modalWaiverLabel');
+        const box   = document.getElementById('modalWaiverBox');
+        if (!cb.checked) {
+          label.classList.add('error');
+          box.classList.add('error');
+          return;
+        }
+        const p = loadProfile();
+        p.waiverSigned = true;
+        saveProfile(p);
+        closeModal();
+        showToast('Waiver signed — you can now reserve courts.');
+        if (typeof onSigned === 'function') setTimeout(onSigned, 300);
+      }),
+    ],
+  });
+}
+
+/**
+ * Returns true if the user has a signed waiver.
+ * If not, opens the waiver modal and returns false so the caller can abort.
+ * Pass `onSigned` to re-attempt the action after the user signs.
+ */
+function requireWaiver(onSigned) {
+  const profile = loadProfile();
+  if (profile?.waiverSigned) return true;
+  openWaiverModal(onSigned);
+  return false;
+}
+
 // ── Reserve (first player creates the slot) ──
 function openReserveModal(court, dayIdx, hour) {
+  if (!requireWaiver(() => openReserveModal(court, dayIdx, hour))) return;
   const profile = loadProfile();
   const dateStr = dayDate(dayIdx).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
@@ -600,6 +674,7 @@ function openReserveModal(court, dayIdx, hour) {
 
 // ── Join (add current user to existing slot) ──
 function openJoinModal(court, dayIdx, hour, currentPlayers) {
+  if (!requireWaiver(() => openJoinModal(court, dayIdx, hour, currentPlayers))) return;
   const profile = loadProfile();
   const dateStr = dayDate(dayIdx).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const openLeft = MAX_PLAYERS - currentPlayers.length - 1;
@@ -791,6 +866,13 @@ function openEditProfileModal(currentProfile) {
           <label for="editNotif">Remind me 30 min before reservations</label>
         </div>` : ''}
 
+      <div class="waiver-status ${currentProfile.waiverSigned ? 'signed' : 'unsigned'}" style="margin-top:12px">
+        ${currentProfile.waiverSigned
+          ? '✓ Liability waiver signed'
+          : `⚠ Waiver not signed — required to reserve courts
+             <button class="sign-link" id="signWaiverBtn">Sign Now</button>`}
+      </div>
+
       <hr class="modal-divider" />
       <button class="btn-logout" id="logoutBtn">Sign Out</button>
     `,
@@ -834,6 +916,11 @@ function openEditProfileModal(currentProfile) {
     saveProfile(p);
     document.getElementById('statLosses').textContent = p.losses;
     showToast('Loss recorded.');
+  });
+
+  document.getElementById('signWaiverBtn')?.addEventListener('click', () => {
+    closeModal();
+    openWaiverModal(() => openEditProfileModal(loadProfile()));
   });
 
   document.getElementById('logoutBtn').addEventListener('click', () => {

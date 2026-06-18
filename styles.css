@@ -888,6 +888,105 @@ footer {
 
 
 /* =============================================================================
+   WAIVER
+   ============================================================================= */
+
+.waiver-section { margin-bottom: 16px; }
+
+.waiver-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  max-height: 160px;
+  overflow-y: auto;
+  text-align: left;
+  margin-bottom: 10px;
+  transition: border-color 0.15s;
+  scrollbar-width: thin;
+}
+
+.waiver-box.error { border-color: var(--red); }
+
+.waiver-title {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+
+.waiver-box p {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  line-height: 1.6;
+  margin-bottom: 7px;
+}
+
+.waiver-box p:last-child { margin-bottom: 0; }
+
+.waiver-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-align: left;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s;
+  line-height: 1.45;
+}
+
+.waiver-check input[type="checkbox"] {
+  width: 16px; height: 16px;
+  flex-shrink: 0;
+  margin-top: 2px;
+  accent-color: var(--cyan);
+  cursor: pointer;
+}
+
+.waiver-check.error { color: var(--red); }
+
+/* Waiver status shown inside profile modal */
+.waiver-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.waiver-status.signed {
+  background: rgba(62, 207, 142, 0.08);
+  border: 1px solid rgba(62, 207, 142, 0.3);
+  color: var(--green);
+}
+
+.waiver-status.unsigned {
+  background: rgba(229, 57, 53, 0.08);
+  border: 1px solid rgba(229, 57, 53, 0.3);
+  color: var(--red);
+}
+
+.waiver-status .sign-link {
+  margin-left: auto;
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: none;
+  border: none;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+
+/* =============================================================================
    TOAST NOTIFICATION
    ============================================================================= */
 
