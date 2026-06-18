@@ -90,14 +90,14 @@ function applyProfileToHeader(profile) {
   document.getElementById('userNameLabel').textContent = `${profile.firstName} ${profile.lastName}`;
 }
 
-/** Shows the welcome overlay and resolves when the user submits a valid profile. */
+/** Shows the welcome overlay and resolves when the user submits a valid profile.
+ *  Fully synchronous — no Notification API calls so no browser can hang it. */
 function promptForProfile() {
   return new Promise(resolve => {
     const overlay = document.getElementById('welcomeOverlay');
-    overlay.classList.remove('hidden'); // show it — hidden by default in HTML
+    overlay.classList.remove('hidden');
 
-    // Use { once: true } so the listener can't pile up across multiple calls
-    document.getElementById('profileSaveBtn').addEventListener('click', async () => {
+    document.getElementById('profileSaveBtn').addEventListener('click', () => {
       const fn = document.getElementById('profileFirst');
       const ln = document.getElementById('profileLast');
       const firstName = fn.value.trim();
@@ -107,14 +107,7 @@ function promptForProfile() {
       ln.classList.toggle('error', !lastName);
       if (!firstName || !lastName) return;
 
-      const wantsNotif = document.getElementById('profileNotif').checked;
-
-      // Request permission but never let it block or throw
-      if (wantsNotif && 'Notification' in window) {
-        try { await Notification.requestPermission(); } catch (_) {}
-      }
-
-      const profile = { firstName, lastName, notif: wantsNotif };
+      const profile = { firstName, lastName, notif: false };
       saveProfile(profile);
       overlay.classList.add('hidden');
       resolve(profile);
