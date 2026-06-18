@@ -8,7 +8,7 @@
 </head>
 <body>
 
-  <!-- ── Profile setup (shown on first visit, blocks the rest) ── -->
+  <!-- ── Profile setup (shown on first visit) ── -->
   <div class="welcome-overlay hidden" id="welcomeOverlay">
     <div class="welcome-card">
       <div class="welcome-logo">
@@ -16,6 +16,7 @@
       </div>
       <h2>Welcome to SafeStreets</h2>
       <p class="welcome-sub">Set up your profile to start reserving court time.</p>
+
       <div class="form-row">
         <div class="form-group">
           <label for="profileFirst">First Name</label>
@@ -26,6 +27,20 @@
           <input type="text" id="profileLast" placeholder="Smith" maxlength="40" autocomplete="family-name" />
         </div>
       </div>
+
+      <div class="form-group">
+        <label for="profileRating">Skill Level</label>
+        <select id="profileRating">
+          <option value="2.0">2.0 – Beginner</option>
+          <option value="2.5">2.5 – Advanced Beginner</option>
+          <option value="3.0" selected>3.0 – Intermediate</option>
+          <option value="3.5">3.5 – Advanced Intermediate</option>
+          <option value="4.0">4.0 – Advanced</option>
+          <option value="4.5">4.5 – Expert</option>
+          <option value="5.0">5.0 – Professional</option>
+        </select>
+      </div>
+
       <button class="btn btn-primary btn-full" id="profileSaveBtn">Get Started →</button>
     </div>
   </div>
@@ -41,17 +56,13 @@
     </div>
 
     <div class="header-right">
-      <!-- Dark / Light mode toggle -->
       <button class="theme-toggle" id="themeToggle" title="Toggle light/dark mode">
         <svg id="themeIconDark" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
         <svg id="themeIconLight" viewBox="0 0 24 24" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
       </button>
-
-      <!-- User profile pill -->
       <div class="user-pill" id="userPill" title="Edit profile">
         <div class="user-avatar" id="userAvatar"></div>
         <span class="user-name" id="userNameLabel"></span>
-        <!-- Pencil icon -->
         <svg class="edit-icon" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
       </div>
     </div>
@@ -59,7 +70,6 @@
 
   <!-- ── Main content ── -->
   <main>
-
     <div class="week-bar">
       <h2 id="weekLabel"></h2>
       <span class="reset-badge" id="resetLabel"></span>
@@ -68,9 +78,9 @@
     <div class="day-tabs" id="dayTabs"></div>
 
     <div class="legend">
-      <div class="legend-item"><div class="legend-dot dot-open"></div> Available</div>
-      <div class="legend-item"><div class="legend-dot dot-booked"></div> Reserved</div>
-      <div class="legend-item"><div class="legend-dot dot-past"></div> Past</div>
+      <div class="legend-item"><div class="legend-dot dot-open"></div> Available / Joinable</div>
+      <div class="legend-item"><div class="legend-dot dot-booked"></div> Your Spot</div>
+      <div class="legend-item"><div class="legend-dot dot-past"></div> Full / Past</div>
     </div>
 
     <div class="courts-grid">
@@ -91,7 +101,6 @@
         <div class="slot-list" id="slots2"></div>
       </div>
     </div>
-
   </main>
 
   <footer>SafeStreets &mdash; Internal Use Only &mdash; Resets every Monday</footer>

@@ -3,26 +3,27 @@
    ============================================================================= */
 
 :root {
-  --bg:           #0a0a0a;
-  --card:         #141414;
-  --panel:        #1c1c1c;
-  --hover:        #222222;
-  --cyan:         #00d4e8;
-  --cyan-dim:     #00a8bc;
-  --cyan-glow:    rgba(0, 212, 232, 0.35);
-  --cyan-bg:      rgba(0, 212, 232, 0.08);
-  --cyan-border:  rgba(0, 212, 232, 0.3);
-  --orange:       #ff9800;
-  --orange-bg:    rgba(255, 152, 0, 0.10);
-  --orange-border:rgba(255, 152, 0, 0.35);
-  --red:          #e53935;
-  --text:         #e8e8e8;
-  --text-dim:     #888;
-  --text-muted:   #555;
-  --border:       #2a2a2a;
-  --header-bg:    #000000;
-  --court-header: #000000;
-  --shadow:       rgba(0, 0, 0, 0.4);
+  --bg:            #0a0a0a;
+  --card:          #141414;
+  --panel:         #1c1c1c;
+  --hover:         #222222;
+  --cyan:          #00d4e8;
+  --cyan-dim:      #00a8bc;
+  --cyan-glow:     rgba(0, 212, 232, 0.35);
+  --cyan-bg:       rgba(0, 212, 232, 0.08);
+  --cyan-border:   rgba(0, 212, 232, 0.3);
+  --orange:        #ff9800;
+  --orange-bg:     rgba(255, 152, 0, 0.10);
+  --orange-border: rgba(255, 152, 0, 0.35);
+  --green:         #3ecf8e;
+  --red:           #e53935;
+  --text:          #e8e8e8;
+  --text-dim:      #888;
+  --text-muted:    #555;
+  --border:        #2a2a2a;
+  --header-bg:     #000000;
+  --court-header:  #000000;
+  --shadow:        rgba(0, 0, 0, 0.4);
 }
 
 /* =============================================================================
@@ -30,25 +31,27 @@
    ============================================================================= */
 
 [data-theme="light"] {
-  --bg:           #f0f4f8;
-  --card:         #ffffff;
-  --panel:        #f8f9fa;
-  --hover:        #e8ecf1;
-  --cyan:         #0099aa;
-  --cyan-dim:     #007a8a;
-  --cyan-glow:    rgba(0, 153, 170, 0.2);
-  --cyan-bg:      rgba(0, 153, 170, 0.07);
-  --cyan-border:  rgba(0, 153, 170, 0.3);
-  --orange:       #e65100;
-  --orange-bg:    rgba(230, 81, 0, 0.07);
-  --orange-border:rgba(230, 81, 0, 0.3);
-  --text:         #0d1b2a;
-  --text-dim:     #555;
-  --text-muted:   #999;
-  --border:       #dde3ea;
-  --header-bg:    #ffffff;
-  --court-header: #0d2b4e;
-  --shadow:       rgba(0, 0, 0, 0.08);
+  --bg:            #f0f4f8;
+  --card:          #ffffff;
+  --panel:         #f8f9fa;
+  --hover:         #e8ecf1;
+  --cyan:          #0099aa;
+  --cyan-dim:      #007a8a;
+  --cyan-glow:     rgba(0, 153, 170, 0.2);
+  --cyan-bg:       rgba(0, 153, 170, 0.07);
+  --cyan-border:   rgba(0, 153, 170, 0.3);
+  --orange:        #e65100;
+  --orange-bg:     rgba(230, 81, 0, 0.07);
+  --orange-border: rgba(230, 81, 0, 0.3);
+  --green:         #2a9d6e;
+  --red:           #c62828;
+  --text:          #0d1b2a;
+  --text-dim:      #555;
+  --text-muted:    #999;
+  --border:        #dde3ea;
+  --header-bg:     #ffffff;
+  --court-header:  #0d2b4e;
+  --shadow:        rgba(0, 0, 0, 0.08);
 }
 
 
@@ -183,7 +186,6 @@ header {
   margin-top: 1px;
 }
 
-/* Right-side header controls */
 .header-right {
   margin-left: auto;
   display: flex;
@@ -191,7 +193,6 @@ header {
   gap: 10px;
 }
 
-/* Theme toggle button */
 .theme-toggle {
   width: 38px;
   height: 38px;
@@ -222,7 +223,6 @@ header {
   stroke-linecap: round;
 }
 
-/* User profile pill */
 .user-pill {
   display: flex;
   align-items: center;
@@ -233,7 +233,7 @@ header {
   padding: 5px 14px 5px 5px;
   cursor: pointer;
   transition: border-color 0.15s, box-shadow 0.15s;
-  max-width: 180px;
+  max-width: 200px;
 }
 
 .user-pill:hover {
@@ -264,6 +264,13 @@ header {
   text-overflow: ellipsis;
 }
 
+.user-rating-badge {
+  font-size: 0.68rem;
+  color: var(--cyan);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .edit-icon {
   width: 13px;
   height: 13px;
@@ -278,7 +285,6 @@ header {
 
 .user-pill:hover .edit-icon { stroke: var(--cyan); }
 
-/* Logout button — sits below the modal actions divider */
 .modal-divider {
   border: none;
   border-top: 1px solid var(--border);
@@ -298,10 +304,7 @@ header {
   transition: background 0.15s, color 0.15s;
 }
 
-.btn-logout:hover {
-  background: var(--red);
-  color: #fff;
-}
+.btn-logout:hover { background: var(--red); color: #fff; }
 
 
 /* =============================================================================
@@ -413,6 +416,7 @@ footer {
 .legend-dot  { width: 12px; height: 12px; border-radius: 4px; }
 .dot-open    { background: var(--cyan-bg);   border: 1px solid var(--cyan);   }
 .dot-booked  { background: var(--orange-bg); border: 1px solid var(--orange); }
+.dot-other   { background: var(--orange-bg); border: 1px solid var(--orange); opacity: 0.5; }
 .dot-past    { background: var(--hover);     border: 1px solid var(--border); }
 
 
@@ -469,38 +473,170 @@ footer {
 
 
 /* =============================================================================
-   TIME SLOTS
+   TIME SLOTS  (multi-player redesign)
    ============================================================================= */
 
 .slot {
-  display: flex;
-  align-items: center;
-  padding: 9px 12px;
   border-radius: 8px;
-  border: 1px solid transparent;
-  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--hover);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s, opacity 0.15s;
   user-select: none;
-  transition: transform 0.1s, box-shadow 0.1s, border-color 0.15s, background 0.15s;
 }
 
-.slot:hover { transform: translateY(-1px); }
+/* top row: time + count + action + share */
+.slot-row1 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 
-.slot.open        { background: var(--cyan-bg);   border-color: var(--cyan-border); }
-.slot.booked-mine { background: var(--orange-bg); border-color: var(--orange-border); }
-.slot.booked-other { background: var(--orange-bg); border-color: var(--orange-border);
-                     cursor: default; opacity: 0.7; }
-.slot.past        { opacity: 0.35; cursor: default; pointer-events: none; }
+.slot-time {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 
-.slot.open:hover        { border-color: var(--cyan);   box-shadow: 0 0 10px var(--cyan-glow); }
-.slot.booked-mine:hover { border-color: var(--orange);  box-shadow: 0 0 8px rgba(255,152,0,0.2); }
-.slot.booked-other:hover { transform: none; box-shadow: none; }
+.slot-count {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-left: auto;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 
-.slot-time   { font-size: 0.8rem; font-weight: 700; width: 112px; flex-shrink: 0; color: var(--text-dim); }
-.slot-status { font-size: 0.8rem; flex: 1; }
-.slot.open         .slot-status { color: var(--cyan); }
-.slot.booked-mine  .slot-status { color: var(--orange); font-weight: 600; }
-.slot.booked-other .slot-status { color: var(--orange); font-weight: 600; }
-.slot-action { font-size: 0.7rem; color: var(--text-muted); flex-shrink: 0; margin-left: 6px; }
+.slot-action {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 5px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.slot-share-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+.slot-share-btn:hover { color: var(--cyan); }
+
+/* player chips row */
+.slot-players {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 1px;
+}
+
+.player-chip {
+  font-size: 0.65rem;
+  padding: 2px 7px;
+  border-radius: 20px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+
+.player-chip.filled {
+  background: var(--orange-bg);
+  border: 1px solid var(--orange-border);
+  color: var(--orange);
+}
+
+.player-chip.mine-chip {
+  background: var(--cyan-bg);
+  border: 1px solid var(--cyan-border);
+  color: var(--cyan);
+}
+
+.player-chip.empty-spot {
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--text-muted);
+}
+
+/* Slot state: open (no players) */
+.slot.open {
+  background: var(--cyan-bg);
+  border-color: var(--cyan-border);
+  cursor: pointer;
+}
+.slot.open:hover {
+  border-color: var(--cyan);
+  box-shadow: 0 0 10px var(--cyan-glow);
+}
+.slot.open .slot-time  { color: var(--cyan); }
+.slot.open .slot-action { background: var(--cyan); color: #000; }
+
+/* Slot state: joinable (has room, I'm not in it) */
+.slot.joinable {
+  background: var(--cyan-bg);
+  border-color: var(--cyan-border);
+  cursor: pointer;
+}
+.slot.joinable:hover {
+  border-color: var(--cyan);
+  box-shadow: 0 0 10px var(--cyan-glow);
+}
+.slot.joinable .slot-action { background: var(--cyan); color: #000; }
+
+/* Slot state: mine (I'm a player) */
+.slot.mine {
+  background: var(--orange-bg);
+  border-color: var(--orange-border);
+  cursor: pointer;
+}
+.slot.mine:hover {
+  border-color: var(--orange);
+  box-shadow: 0 0 8px rgba(255,152,0,0.2);
+}
+.slot.mine .slot-time   { color: var(--orange); }
+.slot.mine .slot-action { background: var(--orange); color: #000; }
+
+/* Slot state: full (not mine, all 4 taken) */
+.slot.full {
+  opacity: 0.65;
+  cursor: default;
+}
+.slot.full .slot-action {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+/* Slot state: past */
+.slot.past {
+  opacity: 0.3;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Past slot where I played — can log a result */
+.slot.past-result {
+  opacity: 0.55;
+  cursor: pointer;
+  border-color: var(--cyan-border);
+}
+.slot.past-result:hover { opacity: 0.75; }
+.slot.past-result .slot-action {
+  background: transparent;
+  border: 1px solid var(--cyan-border);
+  color: var(--cyan-dim);
+}
 
 
 /* =============================================================================
@@ -528,6 +664,8 @@ footer {
   padding: 28px 24px;
   width: 100%;
   max-width: 440px;
+  max-height: 90vh;
+  overflow-y: auto;
   box-shadow: 0 0 40px var(--cyan-glow), 0 20px 50px var(--shadow);
   animation: pop 0.18s ease-out;
   transition: background 0.25s;
@@ -541,6 +679,150 @@ footer {
 .modal h4       { font-size: 1rem; color: var(--text); font-weight: 700; margin-bottom: 4px; }
 .modal .modal-sub { font-size: 0.8rem; color: var(--cyan); margin-bottom: 18px; }
 
+/* Player list inside modal */
+.modal-player-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.modal-player-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  font-size: 0.88rem;
+}
+
+.modal-player-row .p-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--orange), #ff5500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.modal-player-row.is-me .p-avatar {
+  background: linear-gradient(135deg, var(--cyan), var(--cyan-dim));
+  color: #000;
+}
+
+.modal-player-row .p-name  { flex: 1; font-weight: 600; }
+.modal-player-row .p-rating { font-size: 0.75rem; color: var(--text-dim); }
+
+.modal-open-spots {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  padding: 6px 12px;
+  font-style: italic;
+}
+
+/* Share link box */
+.share-box {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 10px 0;
+}
+
+.share-box input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  outline: none;
+  min-width: 0;
+}
+
+.share-box button {
+  background: var(--cyan);
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: filter 0.15s;
+}
+.share-box button:hover { filter: brightness(1.1); }
+
+
+/* =============================================================================
+   PROFILE STATS (inside edit modal)
+   ============================================================================= */
+
+.profile-stats {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.stat-box {
+  flex: 1;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 8px;
+  text-align: center;
+}
+
+.stat-box .stat-val {
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.stat-box .stat-lbl {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.stat-box.wins   .stat-val { color: var(--green); }
+.stat-box.losses .stat-val { color: var(--red); }
+.stat-box.rating .stat-val { color: var(--cyan); }
+
+.log-result-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.btn-win, .btn-loss {
+  flex: 1;
+  padding: 7px;
+  border-radius: 7px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.btn-win:hover, .btn-loss:hover { opacity: 0.88; transform: translateY(-1px); }
+
+.btn-win  { background: var(--green); color: #fff; }
+.btn-loss { background: transparent; border: 1.5px solid var(--red); color: var(--red); }
+.btn-loss:hover { background: var(--red); color: #fff; }
+
 
 /* =============================================================================
    FORMS (shared by modal + welcome card)
@@ -551,7 +833,8 @@ footer {
 
 .form-group label { font-size: 0.75rem; font-weight: 700; color: var(--text-dim); }
 
-.form-group input {
+.form-group input,
+.form-group select {
   padding: 10px 12px;
   background: var(--card);
   border: 1px solid var(--border);
@@ -560,34 +843,13 @@ footer {
   color: var(--text);
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
+  appearance: auto;
 }
 
 .form-group input::placeholder { color: var(--text-muted); }
-.form-group input:focus  { border-color: var(--cyan); box-shadow: 0 0 8px var(--cyan-glow); }
+.form-group input:focus,
+.form-group select:focus  { border-color: var(--cyan); box-shadow: 0 0 8px var(--cyan-glow); }
 .form-group input.error  { border-color: var(--red); }
-
-.notif-opt {
-  background: var(--cyan-bg);
-  border: 1px solid var(--cyan-border);
-  border-radius: 8px;
-  padding: 10px 14px;
-  margin-bottom: 16px;
-  font-size: 0.79rem;
-  color: var(--cyan);
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  text-align: left;
-}
-
-.notif-opt input[type="checkbox"] {
-  width: 15px; height: 15px;
-  cursor: pointer; flex-shrink: 0;
-  accent-color: var(--cyan);
-  margin-top: 1px;
-}
-
-.notif-opt label { cursor: pointer; user-select: none; line-height: 1.4; }
 
 .modal-actions { display: flex; gap: 10px; margin-top: 4px; }
 
@@ -621,8 +883,8 @@ footer {
 }
 .btn-primary:hover { box-shadow: 0 0 20px var(--cyan-glow); }
 
-.btn-danger    { background: var(--red);    color: #fff; flex: 1; }
-.btn-secondary { background: var(--hover);  color: var(--text); border: 1px solid var(--border); }
+.btn-danger    { background: var(--red);   color: #fff; flex: 1; }
+.btn-secondary { background: var(--hover); color: var(--text); border: 1px solid var(--border); }
 
 
 /* =============================================================================
