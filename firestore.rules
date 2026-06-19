@@ -3,15 +3,25 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Reservations collection — one document per week (keyed YYYY-MM-DD)
+    // Reservations — one document per week (keyed YYYY-MM-DD)
     match /reservations/{weekId} {
+      allow read:  if request.auth != null;
+      allow write: if request.auth != null
+                   && weekId.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}');
+    }
 
-      // Anyone can read the schedule
-      allow read: if true;
+    // Player profiles — each user owns their own document
+    match /players/{userId} {
+      allow read:   if request.auth != null;
+      allow create: if request.auth.uid == userId;
+      allow update: if request.auth.uid == userId;
+    }
 
-      // Anyone can write — internal tool, no auth required.
-      // Restrict to valid week-key format as a basic safeguard.
-      allow write: if weekId.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}');
+    // Match records — authenticated users can create; only creator can update
+    match /matches/{matchId} {
+      allow read:   if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if resource.data.uid == request.auth.uid;
     }
 
   }

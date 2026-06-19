@@ -4,12 +4,20 @@
 
 import { initializeApp }
   from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
-import { getFirestore, doc, setDoc, updateDoc, onSnapshot, deleteField }
-  from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+import {
+  getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  sendPasswordResetEmail, onAuthStateChanged, signOut,
+} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import {
+  getFirestore, doc, setDoc, getDoc, getDocs, updateDoc, onSnapshot,
+  deleteField, collection, addDoc, serverTimestamp, increment,
+} from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { FIREBASE_CONFIG }
   from './firebase-config.js';
 
-const db = getFirestore(initializeApp(FIREBASE_CONFIG));
+const app = initializeApp(FIREBASE_CONFIG);
+const auth = getAuth(app);
+const db   = getFirestore(app);
 
 
 // =============================================================================
@@ -32,7 +40,6 @@ const RATINGS = [
   [5.0, '5.0 – Professional'],
 ];
 
-// Reusable waiver body HTML (rendered inside a .waiver-box)
 const WAIVER_BODY_HTML = `
   <p class="waiver-title">Waiver &amp; Release of Liability</p>
   <p><strong>Assumption of Risk.</strong> Pickleball is a physical sport. I understand that participation involves inherent risks including, but not limited to, physical exertion, falls, collisions with other players or equipment, muscle strains, joint injuries, and other bodily harm.</p>
@@ -41,6 +48,22 @@ const WAIVER_BODY_HTML = `
   <p><strong>Facility Rules.</strong> I agree to follow all facility rules, court etiquette, and instructions of facility staff, and to treat all participants with respect.</p>
   <p>This agreement is effective for all court reservations made through the SafeStreets scheduling system.</p>
 `;
+
+// Firebase auth error codes → readable messages
+const AUTH_ERRORS = {
+  'auth/user-not-found':       'No account found with this email.',
+  'auth/wrong-password':       'Incorrect password.',
+  'auth/invalid-credential':   'Invalid email or password.',
+  'auth/email-already-in-use': 'An account with this email already exists.',
+  'auth/weak-password':        'Password must be at least 6 characters.',
+  'auth/invalid-email':        'Please enter a valid email address.',
+  'auth/too-many-requests':    'Too many attempts. Please try again later.',
+  'auth/network-request-failed': 'Network error. Check your connection.',
+};
+
+function authMsg(code) {
+  return AUTH_ERRORS[code] || `Error (${code}). Please try again.`;
+}
 
 
 // =============================================================================
@@ -75,92 +98,17 @@ const todayDayIdx = (() => { const d = new Date().getDay(); return d === 0 ? 6 :
 
 
 // =============================================================================
-// DEVICE ID
+// APP STATE
 // =============================================================================
 
-const DEVICE_ID = (() => {
-  const k = 'ss_deviceId';
-  return localStorage.getItem(k) || (() => {
-    const id = Math.random().toString(36).slice(2);
-    localStorage.setItem(k, id);
-    return id;
-  })();
-})();
+let currentUser    = null;  // Firebase Auth user
+let currentProfile = null;  // Firestore player document
+let selectedDay    = todayDayIdx;
+let pendingJoin    = null;  // { court, day, hour } from a share link
+let appInitialized = false; // guard so startSync only runs once
 
-
-// =============================================================================
-// USER PROFILE
-// Profile shape: { firstName, lastName, rating, wins, losses, notif }
-// =============================================================================
-
-const PROFILE_KEY = 'ss_profile';
-
-function loadProfile() {
-  try { return JSON.parse(localStorage.getItem(PROFILE_KEY)); } catch { return null; }
-}
-
-function saveProfile(profile) {
-  localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
-}
-
-function getInitials(firstName, lastName) {
-  return `${(firstName[0] || '?')}${(lastName[0] || '?')}`.toUpperCase();
-}
-
-function applyProfileToHeader(profile) {
-  document.getElementById('userAvatar').textContent    = getInitials(profile.firstName, profile.lastName);
-  document.getElementById('userNameLabel').textContent = `${profile.firstName} ${profile.lastName}`;
-}
-
-function logout() {
-  try { localStorage.removeItem(PROFILE_KEY); } catch (_) {}
-  location.reload();
-}
-
-function ratingOptions(selected) {
-  return RATINGS.map(([v, l]) =>
-    `<option value="${v}" ${v == selected ? 'selected' : ''}>${l}</option>`
-  ).join('');
-}
-
-/** Shows welcome overlay and resolves when user submits a valid profile.
- *  Fully synchronous — no Notification API calls to prevent browser hangs. */
-function promptForProfile() {
-  return new Promise(resolve => {
-    const overlay = document.getElementById('welcomeOverlay');
-    overlay.classList.remove('hidden');
-
-    document.getElementById('profileSaveBtn').addEventListener('click', () => {
-      const fn = document.getElementById('profileFirst');
-      const ln = document.getElementById('profileLast');
-      const firstName = fn.value.trim();
-      const lastName  = ln.value.trim();
-
-      fn.classList.toggle('error', !firstName);
-      ln.classList.toggle('error', !lastName);
-      if (!firstName || !lastName) return;
-
-      // Require waiver agreement
-      const waiverCb    = document.getElementById('profileWaiver');
-      const waiverLabel = document.getElementById('waiverCheckLabel');
-      const waiverBox   = document.getElementById('waiverBox');
-      if (!waiverCb.checked) {
-        waiverLabel.classList.add('error');
-        waiverBox.classList.add('error');
-        waiverBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        return;
-      }
-      waiverLabel.classList.remove('error');
-      waiverBox.classList.remove('error');
-
-      const rating  = parseFloat(document.getElementById('profileRating').value) || 3.0;
-      const profile = { firstName, lastName, rating, wins: 0, losses: 0, notif: false, waiverSigned: true };
-      saveProfile(profile);
-      overlay.classList.add('hidden');
-      resolve(profile);
-    }, { once: true });
-  });
-}
+/** data[court][dayIdx][hour] = { players: [...], maxPlayers, createdBy } */
+let data = { 1: {}, 2: {} };
 
 
 // =============================================================================
@@ -175,49 +123,257 @@ const iconLight  = document.getElementById('themeIconLight');
 function applyTheme(theme) {
   html.setAttribute('data-theme', theme);
   localStorage.setItem(THEME_KEY, theme);
-  const isDark = theme === 'dark';
-  iconDark.style.display  = isDark ? 'block' : 'none';
-  iconLight.style.display = isDark ? 'none'  : 'block';
+  iconDark.style.display  = theme === 'dark' ? 'block' : 'none';
+  iconLight.style.display = theme === 'dark' ? 'none'  : 'block';
 }
 
-function toggleTheme() {
+document.getElementById('themeToggle').addEventListener('click', () => {
   applyTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+});
+
+try { applyTheme(localStorage.getItem(THEME_KEY) || 'dark'); } catch { applyTheme('dark'); }
+
+
+// =============================================================================
+// PROFILE HELPERS
+// =============================================================================
+
+const PROFILE_KEY = 'ss_profile_v2'; // v2 = Firestore-backed
+
+function getCachedProfile() {
+  try { return JSON.parse(localStorage.getItem(PROFILE_KEY)); } catch { return null; }
 }
 
-document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+function setCachedProfile(p) {
+  try { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); } catch {}
+}
+
+function getInitials(firstName, lastName) {
+  return `${(firstName?.[0] || '?')}${(lastName?.[0] || '?')}`.toUpperCase();
+}
+
+function ratingOptions(selected) {
+  return RATINGS.map(([v, l]) =>
+    `<option value="${v}" ${v == selected ? 'selected' : ''}>${l}</option>`
+  ).join('');
+}
+
+async function loadFirestoreProfile(uid) {
+  const snap = await getDoc(doc(db, 'players', uid));
+  if (!snap.exists()) return null;
+  const p = snap.data();
+  setCachedProfile(p);
+  return p;
+}
+
+async function saveFirestoreProfile(uid, profile) {
+  await setDoc(doc(db, 'players', uid), profile, { merge: true });
+  setCachedProfile(profile);
+  currentProfile = profile;
+}
+
+function applyProfileToHeader(profile) {
+  document.getElementById('userAvatar').textContent    = getInitials(profile.firstName, profile.lastName);
+  document.getElementById('userNameLabel').textContent = `${profile.firstName} ${profile.lastName}`;
+}
 
 
 // =============================================================================
-// STATE
+// AUTH OVERLAY
 // =============================================================================
 
-/** data[court][dayIdx][hour] = { players: [...], maxPlayers, createdBy } */
-let data        = { 1: {}, 2: {} };
-let selectedDay = todayDayIdx;
+const overlay = document.getElementById('welcomeOverlay');
 
-/** Pending join from a share link — set before startSync, consumed on first snapshot. */
-let pendingJoin = null;
+function showAuthOverlay() { overlay.classList.remove('hidden'); }
+function hideAuthOverlay() { overlay.classList.add('hidden'); }
+
+// Tab switching
+document.getElementById('authTabs').addEventListener('click', e => {
+  const tab = e.target.closest('.auth-tab');
+  if (!tab) return;
+  document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+  tab.classList.add('active');
+  const panel = tab.dataset.panel;
+  document.getElementById('panelSignIn').style.display = panel === 'signIn' ? 'block' : 'none';
+  document.getElementById('panelSignUp').style.display = panel === 'signUp' ? 'block' : 'none';
+  document.getElementById('loginError').classList.add('hidden');
+  document.getElementById('signupError').classList.add('hidden');
+});
+
+// Sign In
+document.getElementById('loginBtn').addEventListener('click', async () => {
+  const email    = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errorEl  = document.getElementById('loginError');
+  errorEl.classList.add('hidden');
+
+  if (!email || !password) {
+    errorEl.textContent = 'Please enter your email and password.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  try {
+    document.getElementById('loginBtn').textContent = 'Signing in…';
+    await signInWithEmailAndPassword(auth, email, password);
+    // onAuthStateChanged handles the rest
+  } catch (err) {
+    document.getElementById('loginBtn').textContent = 'Sign In →';
+    errorEl.textContent = authMsg(err.code);
+    errorEl.classList.remove('hidden');
+  }
+});
+
+// Forgot password
+document.getElementById('forgotBtn').addEventListener('click', async () => {
+  const email = document.getElementById('loginEmail').value.trim();
+  if (!email) {
+    const errorEl = document.getElementById('loginError');
+    errorEl.textContent = 'Enter your email above, then click Forgot password.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  try {
+    await sendPasswordResetEmail(auth, email);
+    showToast('Password reset email sent!');
+  } catch (err) {
+    showToast(authMsg(err.code), 'error');
+  }
+});
+
+// Create Account
+document.getElementById('signupBtn').addEventListener('click', async () => {
+  const fn       = document.getElementById('signupFirst');
+  const ln       = document.getElementById('signupLast');
+  const emailEl  = document.getElementById('signupEmail');
+  const passEl   = document.getElementById('signupPassword');
+  const waiverCb = document.getElementById('signupWaiver');
+  const errorEl  = document.getElementById('signupError');
+
+  const firstName = fn.value.trim();
+  const lastName  = ln.value.trim();
+  const email     = emailEl.value.trim();
+  const password  = passEl.value;
+
+  fn.classList.toggle('error', !firstName);
+  ln.classList.toggle('error', !lastName);
+  emailEl.classList.toggle('error', !email);
+  passEl.classList.toggle('error', password.length < 6);
+
+  if (!firstName || !lastName || !email || password.length < 6) return;
+
+  // Require waiver
+  if (!waiverCb.checked) {
+    const label = document.getElementById('signupWaiverLabel');
+    const box   = document.getElementById('signupWaiverBox');
+    label.classList.add('error');
+    box.classList.add('error');
+    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    return;
+  }
+
+  errorEl.classList.add('hidden');
+  const rating = parseFloat(document.getElementById('signupRating').value) || 3.0;
+
+  try {
+    document.getElementById('signupBtn').textContent = 'Creating account…';
+    const { user } = await createUserWithEmailAndPassword(auth, email, password);
+
+    const profile = {
+      firstName, lastName, rating,
+      wins: 0, losses: 0,
+      waiverSigned: true,
+      email: user.email,
+      createdAt: serverTimestamp(),
+    };
+    await setDoc(doc(db, 'players', user.uid), profile);
+    setCachedProfile(profile);
+    // onAuthStateChanged handles the rest
+  } catch (err) {
+    document.getElementById('signupBtn').textContent = 'Create Account →';
+    errorEl.textContent = authMsg(err.code);
+    errorEl.classList.remove('hidden');
+  }
+});
 
 
 // =============================================================================
-// RESERVATION HELPERS
+// AUTH STATE LISTENER  (entry point after Firebase loads)
+// =============================================================================
+
+onAuthStateChanged(auth, async (user) => {
+  if (!user) {
+    currentUser    = null;
+    currentProfile = null;
+    appInitialized = false;
+    showAuthOverlay();
+    // Reset button labels in case of failed attempt
+    document.getElementById('loginBtn').textContent   = 'Sign In →';
+    document.getElementById('signupBtn').textContent  = 'Create Account →';
+    return;
+  }
+
+  currentUser = user;
+
+  // Load profile — try Firestore, fall back to cache while it loads
+  currentProfile = getCachedProfile() || null;
+  if (currentProfile) applyProfileToHeader(currentProfile);
+
+  try {
+    const firestoreProfile = await loadFirestoreProfile(user.uid);
+    if (firestoreProfile) {
+      currentProfile = firestoreProfile;
+      applyProfileToHeader(currentProfile);
+    }
+  } catch (err) {
+    console.warn('Profile load failed, using cache:', err);
+  }
+
+  if (!currentProfile) {
+    showToast('Could not load your profile. Please sign in again.', 'error');
+    await signOut(auth);
+    return;
+  }
+
+  hideAuthOverlay();
+
+  if (!appInitialized) {
+    appInitialized = true;
+    wireProfilePill();
+    buildWeekLabels();
+
+    const joinParams = getJoinParams();
+    if (joinParams) {
+      selectedDay = joinParams.day;
+      pendingJoin = joinParams;
+    }
+
+    render();
+    startSync();
+    setInterval(render, 60_000);
+  } else {
+    // Profile may have changed (e.g. display name update) — just re-render header
+    applyProfileToHeader(currentProfile);
+  }
+});
+
+
+// =============================================================================
+// RESERVATION DATA HELPERS
 // =============================================================================
 
 /**
- * Returns a normalized players array from a Firestore reservation object.
- * Handles both the new multi-player format and the legacy single-player format.
+ * Normalises a Firestore reservation object to always return a players array.
+ * Handles the new multi-player format and the legacy deviceId single-player format.
  */
 function normalizeRes(res) {
   if (!res) return [];
   if (Array.isArray(res.players)) return res.players;
-  // Legacy format: { firstName, lastName, deviceId, notif, rating? }
+  // Legacy: { firstName, lastName, deviceId, notif, rating? }
   if (res.firstName) {
     return [{
-      firstName: res.firstName,
-      lastName:  res.lastName,
-      rating:    res.rating || null,
-      deviceId:  res.deviceId,
-      notif:     res.notif || false,
+      firstName: res.firstName, lastName: res.lastName,
+      rating: res.rating || null, uid: res.deviceId || null, notif: res.notif || false,
     }];
   }
   return [];
@@ -250,7 +406,7 @@ async function delRes(court, dayIdx, hour) {
 
 
 // =============================================================================
-// FIRESTORE — REAL-TIME SYNC
+// FIRESTORE SYNC
 // =============================================================================
 
 function applySnapshot(flatMap) {
@@ -266,17 +422,13 @@ function applySnapshot(flatMap) {
   rescheduleAll();
   render();
 
-  // Handle a pending join link (fires once after first snapshot)
   if (pendingJoin) {
     const { court, day, hour } = pendingJoin;
     pendingJoin = null;
-    const players = normalizeRes(getRes(court, day, hour));
-    const alreadyIn = players.some(p => p.deviceId === DEVICE_ID);
-    if (!alreadyIn) {
-      setTimeout(() => openJoinModal(court, day, hour, players), 150);
-    } else {
-      showToast('You\'re already in this game!');
-    }
+    const players  = normalizeRes(getRes(court, day, hour));
+    const alreadyIn = players.some(p => p.uid === currentUser?.uid);
+    if (!alreadyIn) setTimeout(() => openJoinModal(court, day, hour, players), 150);
+    else showToast('You\'re already in this game!');
   }
 }
 
@@ -297,13 +449,13 @@ function startSync() {
 // =============================================================================
 
 const notifTimers = {};
-
-function timerKey(court, dayIdx, hour) { return `${court}_${dayIdx}_${hour}`; }
+function timerKey(c, d, h) { return `${c}_${d}_${h}`; }
 
 function scheduleNotif(court, dayIdx, hour, res) {
+  if (!currentUser) return;
   const players  = normalizeRes(res);
-  const myPlayer = players.find(p => p.deviceId === DEVICE_ID && p.notif);
-  if (!myPlayer) return;
+  const me       = players.find(p => p.uid === currentUser.uid && p.notif);
+  if (!me) return;
 
   const alertAt = slotDateTime(dayIdx, hour).getTime() - 30 * 60 * 1000;
   if (alertAt <= Date.now()) return;
@@ -313,15 +465,16 @@ function scheduleNotif(court, dayIdx, hour, res) {
   notifTimers[key] = setTimeout(() => {
     if (Notification.permission === 'granted') {
       new Notification('SafeStreets Pickleball – 30 min reminder', {
-        body: `${myPlayer.firstName} ${myPlayer.lastName}, Court ${court} starts at ${fmtHour(hour)}!`
+        body: `${me.firstName}, Court ${court} starts at ${fmtHour(hour)}!`,
       });
     }
   }, alertAt - Date.now());
 }
 
-function cancelNotifForDevice(court, dayIdx, hour) {
-  clearTimeout(notifTimers[timerKey(court, dayIdx, hour)]);
-  delete notifTimers[timerKey(court, dayIdx, hour)];
+function cancelNotif(court, dayIdx, hour) {
+  const key = timerKey(court, dayIdx, hour);
+  clearTimeout(notifTimers[key]);
+  delete notifTimers[key];
 }
 
 function rescheduleAll() {
@@ -361,18 +514,13 @@ function copyShareLink(court, dayIdx, hour) {
   url.searchParams.set('week', WEEK_KEY);
   navigator.clipboard.writeText(url.toString())
     .then(() => showToast('Share link copied!'))
-    .catch(() => {
-      // Fallback: show the URL in a prompt
-      prompt('Copy this link to share:', url.toString());
-    });
+    .catch(() => prompt('Copy this link to share:', url.toString()));
 }
 
 function getJoinParams() {
   const params = new URLSearchParams(location.search);
   if (!params.has('court')) return null;
-
-  // Consume params from URL immediately so refresh doesn't re-trigger
-  history.replaceState(null, '', location.pathname);
+  history.replaceState(null, '', location.pathname); // clean URL
 
   const court = parseInt(params.get('court'));
   const day   = parseInt(params.get('day'));
@@ -381,12 +529,10 @@ function getJoinParams() {
 
   if (!COURTS.includes(court) || isNaN(day) || !HOURS.includes(hour)) return null;
   if (day < 0 || day > 6) return null;
-
   if (week && week !== WEEK_KEY) {
     setTimeout(() => showToast('This share link is from a different week.', 'error'), 1000);
     return null;
   }
-
   return { court, day, hour };
 }
 
@@ -435,44 +581,36 @@ function buildSlots(court) {
     const res     = getRes(court, selectedDay, hour);
     const players = normalizeRes(res);
     const isFull  = players.length >= MAX_PLAYERS;
-    const amIIn   = players.some(p => p.deviceId === DEVICE_ID);
+    const amIIn   = players.some(p => p.uid === currentUser?.uid);
     const isOpen  = players.length === 0;
 
     if (isOpen && !isPast) openCount++;
 
-    // Determine slot state
     let stateClass, actionText, clickable;
     if (isPast) {
-      if (amIIn) {
-        stateClass = 'past-result'; actionText = 'Log Result'; clickable = true;
-      } else {
-        stateClass = 'past'; actionText = ''; clickable = false;
-      }
+      if (amIIn) { stateClass = 'past-result'; actionText = 'Log Match'; clickable = true; }
+      else        { stateClass = 'past';        actionText = '';          clickable = false; }
     } else if (isOpen) {
-      stateClass = 'open'; actionText = 'Reserve →'; clickable = true;
+      stateClass = 'open';     actionText = 'Reserve →'; clickable = true;
     } else if (amIIn) {
       stateClass = 'mine';
       actionText = players.length === 1 ? 'Cancel ✕' : 'Leave ✕';
-      clickable = true;
+      clickable  = true;
     } else if (isFull) {
       stateClass = 'full'; actionText = '🔒 Full'; clickable = false;
     } else {
       stateClass = 'joinable'; actionText = 'Join →'; clickable = true;
     }
 
-    // Build player chips
     const chips = players.map(p => {
-      const isMe  = p.deviceId === DEVICE_ID;
+      const isMe  = p.uid === currentUser?.uid;
       const name  = `${p.firstName} ${p.lastName[0]}.`;
       const stars = p.rating ? ` ★${p.rating}` : '';
       return `<span class="player-chip ${isMe ? 'mine-chip' : 'filled'}">${name}${stars}</span>`;
     });
-    const openSpots = MAX_PLAYERS - players.length;
-    for (let i = 0; i < openSpots; i++) {
+    for (let i = 0; i < MAX_PLAYERS - players.length; i++) {
       chips.push(`<span class="player-chip empty-spot">+ Open</span>`);
     }
-
-    const showShare = !isPast && !isOpen;
 
     const slot = document.createElement('div');
     slot.className = `slot ${stateClass}`;
@@ -481,32 +619,27 @@ function buildSlots(court) {
         <span class="slot-time">${slotLabel(hour)}</span>
         ${!isOpen ? `<span class="slot-count">${players.length}/${MAX_PLAYERS}</span>` : ''}
         ${actionText ? `<span class="slot-action">${actionText}</span>` : ''}
-        ${showShare ? `<button class="slot-share-btn" title="Copy share link">🔗</button>` : ''}
+        ${!isPast && !isOpen ? `<button class="slot-share-btn" title="Copy share link">🔗</button>` : ''}
       </div>
       ${players.length > 0 ? `<div class="slot-players">${chips.join('')}</div>` : ''}
     `;
 
     if (clickable) {
-      const mainClickTarget = slot;
       if (isPast && amIIn) {
-        mainClickTarget.addEventListener('click', () => openLogResultModal(court, selectedDay, hour));
+        slot.addEventListener('click', () => openMatchLogModal(court, selectedDay, hour));
       } else if (isOpen) {
-        mainClickTarget.addEventListener('click', () => openReserveModal(court, selectedDay, hour));
+        slot.addEventListener('click', () => openReserveModal(court, selectedDay, hour));
       } else if (amIIn) {
-        mainClickTarget.addEventListener('click', () => openLeaveModal(court, selectedDay, hour, players));
+        slot.addEventListener('click', () => openLeaveModal(court, selectedDay, hour, players));
       } else if (!isFull) {
-        mainClickTarget.addEventListener('click', () => openJoinModal(court, selectedDay, hour, players));
+        slot.addEventListener('click', () => openJoinModal(court, selectedDay, hour, players));
       }
     }
 
-    // Share button — separate click (stops propagation so it doesn't trigger main click)
-    const shareBtn = slot.querySelector('.slot-share-btn');
-    if (shareBtn) {
-      shareBtn.addEventListener('click', e => {
-        e.stopPropagation();
-        copyShareLink(court, selectedDay, hour);
-      });
-    }
+    slot.querySelector('.slot-share-btn')?.addEventListener('click', e => {
+      e.stopPropagation();
+      copyShareLink(court, selectedDay, hour);
+    });
 
     container.appendChild(slot);
   }
@@ -515,6 +648,7 @@ function buildSlots(court) {
 }
 
 function render() {
+  if (!currentUser) return; // don't render until authenticated
   buildDayTabs();
   buildSlots(1);
   buildSlots(2);
@@ -522,7 +656,7 @@ function render() {
 
 
 // =============================================================================
-// MODALS
+// MODAL FRAMEWORK
 // =============================================================================
 
 function setModal({ title, sub, body, actions }) {
@@ -552,7 +686,6 @@ document.getElementById('modalOverlay').addEventListener('click', e => {
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
-// Notification opt-in HTML helper
 function notifOptHtml(profile) {
   if (!('Notification' in window)) return '';
   const checked = profile.notif && Notification.permission === 'granted';
@@ -564,50 +697,43 @@ function notifOptHtml(profile) {
   `;
 }
 
-// Builds a player row for the modal player list
 function playerRowHtml(p, isMe) {
-  const initials = getInitials(p.firstName, p.lastName);
-  const label    = `${p.firstName} ${p.lastName}${isMe ? ' (you)' : ''}`;
-  const rating   = p.rating ? `★ ${p.rating}` : '—';
   return `
     <div class="modal-player-row ${isMe ? 'is-me' : ''}">
-      <div class="p-avatar">${initials}</div>
-      <span class="p-name">${label}</span>
-      <span class="p-rating">${rating}</span>
+      <div class="p-avatar">${getInitials(p.firstName, p.lastName)}</div>
+      <span class="p-name">${p.firstName} ${p.lastName}${isMe ? ' (you)' : ''}</span>
+      <span class="p-rating">${p.rating ? `★ ${p.rating}` : '—'}</span>
     </div>
   `;
 }
 
-// ── Waiver gate ──
 
-/** Opens a modal for users who missed the waiver on the welcome screen. */
+// =============================================================================
+// WAIVER GATE
+// =============================================================================
+
 function openWaiverModal(onSigned) {
   setModal({
     title: 'Waiver Required',
-    sub:   'You must agree before reserving or joining a court.',
+    sub:   'Required before reserving or joining a court.',
     body: `
-      <div class="waiver-box" id="modalWaiverBox" style="max-height:220px">
-        ${WAIVER_BODY_HTML}
-      </div>
-      <label class="waiver-check" id="modalWaiverLabel" style="margin-top:12px">
-        <input type="checkbox" id="modalWaiverCb" />
+      <div class="waiver-box" id="mWaiverBox" style="max-height:220px">${WAIVER_BODY_HTML}</div>
+      <label class="waiver-check" id="mWaiverLabel" style="margin-top:12px">
+        <input type="checkbox" id="mWaiverCb" />
         <span>I have read and agree to the Waiver &amp; Release of Liability</span>
       </label>
     `,
     actions: [
       makeBtn('Cancel', 'btn-secondary', closeModal),
-      makeBtn('Sign & Continue', 'btn-primary', () => {
-        const cb    = document.getElementById('modalWaiverCb');
-        const label = document.getElementById('modalWaiverLabel');
-        const box   = document.getElementById('modalWaiverBox');
+      makeBtn('Sign & Continue', 'btn-primary', async () => {
+        const cb = document.getElementById('mWaiverCb');
         if (!cb.checked) {
-          label.classList.add('error');
-          box.classList.add('error');
+          document.getElementById('mWaiverLabel').classList.add('error');
+          document.getElementById('mWaiverBox').classList.add('error');
           return;
         }
-        const p = loadProfile();
-        p.waiverSigned = true;
-        saveProfile(p);
+        const updated = { ...currentProfile, waiverSigned: true };
+        await saveFirestoreProfile(currentUser.uid, updated);
         closeModal();
         showToast('Waiver signed — you can now reserve courts.');
         if (typeof onSigned === 'function') setTimeout(onSigned, 300);
@@ -616,22 +742,20 @@ function openWaiverModal(onSigned) {
   });
 }
 
-/**
- * Returns true if the user has a signed waiver.
- * If not, opens the waiver modal and returns false so the caller can abort.
- * Pass `onSigned` to re-attempt the action after the user signs.
- */
 function requireWaiver(onSigned) {
-  const profile = loadProfile();
-  if (profile?.waiverSigned) return true;
+  if (currentProfile?.waiverSigned) return true;
   openWaiverModal(onSigned);
   return false;
 }
 
-// ── Reserve (first player creates the slot) ──
+
+// =============================================================================
+// RESERVATION MODALS
+// =============================================================================
+
 function openReserveModal(court, dayIdx, hour) {
   if (!requireWaiver(() => openReserveModal(court, dayIdx, hour))) return;
-  const profile = loadProfile();
+  const profile = currentProfile;
   const dateStr = dayDate(dayIdx).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
   setModal({
@@ -639,7 +763,7 @@ function openReserveModal(court, dayIdx, hour) {
     sub:   `${DAY_NAMES[dayIdx]}, ${dateStr} · ${slotLabel(hour)}`,
     body: `
       <p style="font-size:.85rem;color:var(--text-dim);margin-bottom:12px">
-        You'll be the first player. Share the link after to invite up to 3 others.
+        You'll be the first player. Share the link to invite up to 3 others.
       </p>
       <div class="modal-player-list">
         ${playerRowHtml(profile, true)}
@@ -652,17 +776,13 @@ function openReserveModal(court, dayIdx, hour) {
       makeBtn('Reserve Slot', 'btn-primary', async () => {
         const wantsNotif = document.getElementById('resNotif')?.checked ?? false;
         if (wantsNotif && Notification.permission !== 'granted') {
-          try { await Notification.requestPermission(); } catch (_) {}
+          try { await Notification.requestPermission(); } catch {}
         }
-
         const player = {
-          firstName: profile.firstName,
-          lastName:  profile.lastName,
-          rating:    profile.rating || null,
-          deviceId:  DEVICE_ID,
-          notif:     wantsNotif,
+          firstName: profile.firstName, lastName: profile.lastName,
+          rating: profile.rating || null, uid: currentUser.uid, notif: wantsNotif,
         };
-        const resObj = { players: [player], maxPlayers: MAX_PLAYERS, createdBy: DEVICE_ID };
+        const resObj = { players: [player], maxPlayers: MAX_PLAYERS, createdBy: currentUser.uid };
         closeModal();
         await setRes(court, dayIdx, hour, resObj);
         scheduleNotif(court, dayIdx, hour, resObj);
@@ -672,37 +792,20 @@ function openReserveModal(court, dayIdx, hour) {
   });
 }
 
-// ── Join (add current user to existing slot) ──
 function openJoinModal(court, dayIdx, hour, currentPlayers) {
   if (!requireWaiver(() => openJoinModal(court, dayIdx, hour, currentPlayers))) return;
-  const profile = loadProfile();
-  const dateStr = dayDate(dayIdx).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const profile = currentProfile;
+  const dateStr  = dayDate(dayIdx).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const openLeft = MAX_PLAYERS - currentPlayers.length - 1;
-
-  const existingRows = currentPlayers.map(p => playerRowHtml(p, false)).join('');
-  const youRow = playerRowHtml(profile, true);
-  const moreOpen = openLeft > 0
-    ? `<div class="modal-open-spots">+ ${openLeft} open spot${openLeft !== 1 ? 's' : ''}</div>`
-    : '';
-
-  const shareUrl = (() => {
-    const url = new URL(location.href);
-    url.search = '';
-    url.searchParams.set('court', court);
-    url.searchParams.set('day', dayIdx);
-    url.searchParams.set('hour', hour);
-    url.searchParams.set('week', WEEK_KEY);
-    return url.toString();
-  })();
 
   setModal({
     title: `Join Court ${court}`,
     sub:   `${DAY_NAMES[dayIdx]}, ${dateStr} · ${slotLabel(hour)}`,
     body: `
       <div class="modal-player-list">
-        ${existingRows}
-        ${youRow}
-        ${moreOpen}
+        ${currentPlayers.map(p => playerRowHtml(p, false)).join('')}
+        ${playerRowHtml(profile, true)}
+        ${openLeft > 0 ? `<div class="modal-open-spots">+ ${openLeft} open spot${openLeft !== 1 ? 's' : ''}</div>` : ''}
       </div>
       ${notifOptHtml(profile)}
     `,
@@ -711,25 +814,15 @@ function openJoinModal(court, dayIdx, hour, currentPlayers) {
       makeBtn('Join Game', 'btn-primary', async () => {
         const wantsNotif = document.getElementById('resNotif')?.checked ?? false;
         if (wantsNotif && Notification.permission !== 'granted') {
-          try { await Notification.requestPermission(); } catch (_) {}
+          try { await Notification.requestPermission(); } catch {}
         }
-
         const newPlayer = {
-          firstName: profile.firstName,
-          lastName:  profile.lastName,
-          rating:    profile.rating || null,
-          deviceId:  DEVICE_ID,
-          notif:     wantsNotif,
+          firstName: profile.firstName, lastName: profile.lastName,
+          rating: profile.rating || null, uid: currentUser.uid, notif: wantsNotif,
         };
-
         const existing   = getRes(court, dayIdx, hour);
         const newPlayers = [...normalizeRes(existing), newPlayer];
-        const newRes     = {
-          players:    newPlayers,
-          maxPlayers: MAX_PLAYERS,
-          createdBy:  existing?.createdBy || DEVICE_ID,
-        };
-
+        const newRes     = { players: newPlayers, maxPlayers: MAX_PLAYERS, createdBy: existing?.createdBy || currentUser.uid };
         closeModal();
         await setRes(court, dayIdx, hour, newRes);
         scheduleNotif(court, dayIdx, hour, newRes);
@@ -739,7 +832,6 @@ function openJoinModal(court, dayIdx, hour, currentPlayers) {
   });
 }
 
-// ── Leave / Cancel ──
 function openLeaveModal(court, dayIdx, hour, players) {
   const solo    = players.length === 1;
   const dateStr = dayDate(dayIdx).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -749,91 +841,263 @@ function openLeaveModal(court, dayIdx, hour, players) {
     sub:   `Court ${court} · ${DAY_NAMES[dayIdx]}, ${dateStr} · ${slotLabel(hour)}`,
     body: `
       <div class="modal-player-list">
-        ${players.map(p => playerRowHtml(p, p.deviceId === DEVICE_ID)).join('')}
+        ${players.map(p => playerRowHtml(p, p.uid === currentUser?.uid)).join('')}
       </div>
       <p style="font-size:.85rem;color:var(--text-dim);margin-top:10px">
-        ${solo
-          ? 'This will remove the reservation entirely.'
-          : 'You\'ll be removed. Others keep their spots.'}
+        ${solo ? 'This will remove the reservation entirely.'
+                : "You'll be removed. Others keep their spots."}
       </p>
     `,
     actions: [
       makeBtn('Keep Spot', 'btn-secondary', closeModal),
       makeBtn(solo ? 'Cancel Reservation' : 'Leave Game', 'btn-danger', async () => {
-        cancelNotifForDevice(court, dayIdx, hour);
+        cancelNotif(court, dayIdx, hour);
         closeModal();
-
-        const remaining = players.filter(p => p.deviceId !== DEVICE_ID);
+        const remaining = players.filter(p => p.uid !== currentUser?.uid);
         if (remaining.length === 0) {
           await delRes(court, dayIdx, hour);
         } else {
           const current = getRes(court, dayIdx, hour);
           await setRes(court, dayIdx, hour, { ...current, players: remaining });
         }
-
         showToast(solo ? 'Reservation cancelled.' : "You've left the game.");
       }),
     ],
   });
 }
 
-// ── Log match result (for past slots I played in) ──
-function openLogResultModal(court, dayIdx, hour) {
+
+// =============================================================================
+// MATCH LOG MODAL
+// =============================================================================
+
+function openMatchLogModal(court, dayIdx, hour) {
   const dateStr = dayDate(dayIdx).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  let matchType  = 'friendly';
+  let matchResult = null; // 'win' | 'loss'
+  let numGames   = 3;
 
   setModal({
     title: 'Log Match Result',
     sub:   `Court ${court} · ${DAY_NAMES[dayIdx]}, ${dateStr} · ${fmtHour(hour)}`,
     body: `
-      <p style="font-size:.85rem;color:var(--text-dim);margin-bottom:16px">
-        How did your match go? This updates your profile record.
+      <p style="font-size:.85rem;color:var(--text-dim);margin-bottom:14px">
+        Record this session. Competitive results update your W/L record.
       </p>
-      <div class="log-result-row">
-        <button class="btn-win" id="logWinBtn">+ Win</button>
-        <button class="btn-loss" id="logLossBtn">+ Loss</button>
+      <div class="match-type-row">
+        <button class="match-type-btn active" id="mtFriendly">🤝 Friendly</button>
+        <button class="match-type-btn"        id="mtCompetitive">🏆 Competitive</button>
+      </div>
+      <div id="competitiveFields" style="display:none">
+        <div class="form-group">
+          <label for="gamesPlayed">Games Played</label>
+          <select id="gamesPlayed">
+            <option value="1">1 game</option>
+            <option value="2">2 games</option>
+            <option value="3" selected>3 games</option>
+            <option value="4">4 games</option>
+            <option value="5">5 games</option>
+          </select>
+        </div>
+        <div id="scoreFields"></div>
+        <div class="form-group" style="margin-top:6px">
+          <label>Your Result</label>
+          <div class="result-row">
+            <button class="result-btn win"  id="resultWin">✓ Win</button>
+            <button class="result-btn loss" id="resultLoss">✗ Loss</button>
+          </div>
+        </div>
       </div>
     `,
-    actions: [makeBtn('Close', 'btn-secondary', closeModal)],
+    actions: [
+      makeBtn('Cancel', 'btn-secondary', closeModal),
+      makeBtn('Record Match', 'btn-primary', async () => {
+        if (matchType === 'competitive' && !matchResult) {
+          showToast('Please select Win or Loss.', 'error');
+          return;
+        }
+
+        // Collect scores
+        const scores = [];
+        if (matchType === 'competitive') {
+          for (let i = 1; i <= numGames; i++) {
+            const a = parseInt(document.getElementById(`sg${i}a`)?.value || '0');
+            const b = parseInt(document.getElementById(`sg${i}b`)?.value || '0');
+            scores.push({ mine: a, theirs: b });
+          }
+        }
+
+        // Save to Firestore matches collection
+        try {
+          await addDoc(collection(db, 'matches'), {
+            uid:     currentUser.uid,
+            slotKey: `${court}_${dayIdx}_${hour}`,
+            weekKey: WEEK_KEY,
+            court, dayIdx, hour,
+            type: matchType,
+            ...(matchType === 'competitive' ? {
+              gamesPlayed: numGames, scores, won: matchResult === 'win',
+            } : {}),
+            recordedAt: serverTimestamp(),
+          });
+
+          // Update win/loss on player profile
+          if (matchType === 'competitive') {
+            const field = matchResult === 'win' ? 'wins' : 'losses';
+            await updateDoc(doc(db, 'players', currentUser.uid), { [field]: increment(1) });
+            currentProfile = { ...currentProfile, [field]: (currentProfile[field] || 0) + 1 };
+            setCachedProfile(currentProfile);
+          }
+
+          closeModal();
+          showToast(matchType === 'friendly'
+            ? 'Friendly match recorded!'
+            : `${matchResult === 'win' ? 'Win' : 'Loss'} recorded!`);
+        } catch (err) {
+          console.error('Match log failed:', err);
+          showToast('Could not save match — please try again.', 'error');
+        }
+      }),
+    ],
   });
 
-  document.getElementById('logWinBtn').addEventListener('click', () => {
-    const p = loadProfile();
-    p.wins = (p.wins || 0) + 1;
-    saveProfile(p);
-    closeModal();
-    showToast('Win recorded! Nice game!');
+  // Type toggle
+  function setType(type) {
+    matchType = type;
+    document.getElementById('mtFriendly').classList.toggle('active', type === 'friendly');
+    document.getElementById('mtCompetitive').classList.toggle('active', type === 'competitive');
+    document.getElementById('competitiveFields').style.display = type === 'competitive' ? 'block' : 'none';
+    if (type === 'competitive') buildScoreFields();
+  }
+
+  function buildScoreFields() {
+    numGames = parseInt(document.getElementById('gamesPlayed').value);
+    const el = document.getElementById('scoreFields');
+    el.innerHTML = '';
+    for (let i = 1; i <= numGames; i++) {
+      el.innerHTML += `
+        <div class="score-row">
+          <span class="score-label">Game ${i}</span>
+          <input type="number" class="score-input" id="sg${i}a" min="0" max="99" placeholder="Yours" />
+          <span class="score-dash">–</span>
+          <input type="number" class="score-input" id="sg${i}b" min="0" max="99" placeholder="Theirs" />
+        </div>
+      `;
+    }
+  }
+
+  document.getElementById('mtFriendly').addEventListener('click', () => setType('friendly'));
+  document.getElementById('mtCompetitive').addEventListener('click', () => setType('competitive'));
+  document.getElementById('gamesPlayed').addEventListener('change', buildScoreFields);
+
+  document.getElementById('resultWin').addEventListener('click', () => {
+    matchResult = 'win';
+    document.getElementById('resultWin').classList.add('active');
+    document.getElementById('resultLoss').classList.remove('active');
   });
 
-  document.getElementById('logLossBtn').addEventListener('click', () => {
-    const p = loadProfile();
-    p.losses = (p.losses || 0) + 1;
-    saveProfile(p);
-    closeModal();
-    showToast('Loss recorded. Better luck next time!');
+  document.getElementById('resultLoss').addEventListener('click', () => {
+    matchResult = 'loss';
+    document.getElementById('resultLoss').classList.add('active');
+    document.getElementById('resultWin').classList.remove('active');
   });
 }
 
-// ── Edit Profile ──
-function openEditProfileModal(currentProfile) {
-  const w = currentProfile.wins   || 0;
-  const l = currentProfile.losses || 0;
-  const r = currentProfile.rating || 3.0;
+
+// =============================================================================
+// LEADERBOARD
+// =============================================================================
+
+document.getElementById('leaderboardBtn').addEventListener('click', openLeaderboard);
+
+async function openLeaderboard() {
+  setModal({
+    title: '🏆 Leaderboard',
+    sub:   'SafeStreets Pickleball — All Players',
+    body:  '<p style="text-align:center;color:var(--text-muted);padding:20px">Loading…</p>',
+    actions: [makeBtn('Close', 'btn-secondary', closeModal)],
+  });
+
+  try {
+    const snap    = await getDocs(collection(db, 'players'));
+    const players = snap.docs
+      .map(d => ({ uid: d.id, ...d.data() }))
+      .sort((a, b) => {
+        const aw = a.wins || 0, bw = b.wins || 0;
+        if (bw !== aw) return bw - aw;
+        return (b.rating || 0) - (a.rating || 0);
+      });
+
+    if (players.length === 0) {
+      document.getElementById('modalBody').innerHTML =
+        '<p style="text-align:center;color:var(--text-muted);padding:20px">No players yet.</p>';
+      return;
+    }
+
+    const rows = players.map((p, i) => {
+      const w     = p.wins || 0;
+      const l     = p.losses || 0;
+      const total = w + l;
+      const pct   = total > 0 ? Math.round((w / total) * 100) + '%' : '—';
+      const isMe  = p.uid === currentUser?.uid;
+      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`;
+      return `
+        <div class="leaderboard-row ${isMe ? 'me' : ''}">
+          <span class="lb-rank">${medal}</span>
+          <div class="lb-avatar">${getInitials(p.firstName, p.lastName)}</div>
+          <div class="lb-info">
+            <span class="lb-name">${p.firstName} ${p.lastName}${isMe ? ' (you)' : ''}</span>
+            <span class="lb-rating">★ ${p.rating || '—'}</span>
+          </div>
+          <div class="lb-record">
+            <span class="lb-w">${w}W</span>
+            <span class="lb-l">${l}L</span>
+            <span class="lb-pct">${pct}</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    document.getElementById('modalBody').innerHTML =
+      `<div class="leaderboard-list">${rows}</div>`;
+  } catch (err) {
+    console.error('Leaderboard failed:', err);
+    document.getElementById('modalBody').innerHTML =
+      '<p style="text-align:center;color:var(--red);padding:20px">Could not load leaderboard.</p>';
+  }
+}
+
+
+// =============================================================================
+// PROFILE MODAL
+// =============================================================================
+
+function wireProfilePill() {
+  document.getElementById('userPill').addEventListener('click', () => {
+    openEditProfileModal();
+  });
+}
+
+function openEditProfileModal() {
+  const p = currentProfile;
+  const w = p.wins   || 0;
+  const l = p.losses || 0;
+  const r = p.rating || 3.0;
 
   setModal({
     title: 'My Profile',
-    sub:   'Update your details or sign out.',
+    sub:   p.email || '',
     body: `
       <div class="form-row">
         <div class="form-group">
           <label for="editFirst">First Name</label>
-          <input type="text" id="editFirst" value="${currentProfile.firstName}" maxlength="40" autocomplete="given-name" />
+          <input type="text" id="editFirst" value="${p.firstName}" maxlength="40" />
         </div>
         <div class="form-group">
           <label for="editLast">Last Name</label>
-          <input type="text" id="editLast" value="${currentProfile.lastName}" maxlength="40" autocomplete="family-name" />
+          <input type="text" id="editLast" value="${p.lastName}" maxlength="40" />
         </div>
       </div>
-
       <div class="form-group">
         <label for="editRating">Skill Level</label>
         <select id="editRating">${ratingOptions(r)}</select>
@@ -854,20 +1118,15 @@ function openEditProfileModal(currentProfile) {
         </div>
       </div>
 
-      <div class="log-result-row">
-        <button class="btn-win"  id="editWinBtn">+ Win</button>
-        <button class="btn-loss" id="editLossBtn">+ Loss</button>
-      </div>
-
       ${'Notification' in window ? `
         <div class="notif-opt" style="margin-top:12px">
           <input type="checkbox" id="editNotif"
-                 ${currentProfile.notif && Notification.permission === 'granted' ? 'checked' : ''} />
-          <label for="editNotif">Remind me 30 min before reservations</label>
+                 ${p.notif && Notification.permission === 'granted' ? 'checked' : ''} />
+          <label for="editNotif">Remind me 30 min before reservations (browser notification)</label>
         </div>` : ''}
 
-      <div class="waiver-status ${currentProfile.waiverSigned ? 'signed' : 'unsigned'}" style="margin-top:12px">
-        ${currentProfile.waiverSigned
+      <div class="waiver-status ${p.waiverSigned ? 'signed' : 'unsigned'}" style="margin-top:12px">
+        ${p.waiverSigned
           ? '✓ Liability waiver signed'
           : `⚠ Waiver not signed — required to reserve courts
              <button class="sign-link" id="signWaiverBtn">Sign Now</button>`}
@@ -890,11 +1149,11 @@ function openEditProfileModal(currentProfile) {
         const rating     = parseFloat(document.getElementById('editRating').value) || r;
         const wantsNotif = document.getElementById('editNotif')?.checked ?? false;
         if (wantsNotif && Notification.permission !== 'granted') {
-          try { await Notification.requestPermission(); } catch (_) {}
+          try { await Notification.requestPermission(); } catch {}
         }
 
-        const updated = { ...currentProfile, firstName, lastName, rating, notif: wantsNotif };
-        saveProfile(updated);
+        const updated = { ...p, firstName, lastName, rating, notif: wantsNotif };
+        await saveFirestoreProfile(currentUser.uid, updated);
         applyProfileToHeader(updated);
         closeModal();
         showToast('Profile updated.');
@@ -902,73 +1161,13 @@ function openEditProfileModal(currentProfile) {
     ],
   });
 
-  document.getElementById('editWinBtn').addEventListener('click', () => {
-    const p = loadProfile();
-    p.wins = (p.wins || 0) + 1;
-    saveProfile(p);
-    document.getElementById('statWins').textContent = p.wins;
-    showToast('Win recorded!');
-  });
-
-  document.getElementById('editLossBtn').addEventListener('click', () => {
-    const p = loadProfile();
-    p.losses = (p.losses || 0) + 1;
-    saveProfile(p);
-    document.getElementById('statLosses').textContent = p.losses;
-    showToast('Loss recorded.');
-  });
-
   document.getElementById('signWaiverBtn')?.addEventListener('click', () => {
     closeModal();
-    openWaiverModal(() => openEditProfileModal(loadProfile()));
+    openWaiverModal(() => openEditProfileModal());
   });
 
-  document.getElementById('logoutBtn').addEventListener('click', () => {
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
     closeModal();
-    logout();
+    try { await signOut(auth); } catch {}
   });
 }
-
-
-// =============================================================================
-// INIT
-// =============================================================================
-
-(async () => {
-  // 1. Apply saved theme
-  try { applyTheme(localStorage.getItem(THEME_KEY) || 'dark'); } catch (_) { applyTheme('dark'); }
-
-  // 2. Check for share link params before anything else (clears URL immediately)
-  const joinParams = getJoinParams();
-
-  // 3. Load or collect profile
-  let profile = null;
-  try { profile = loadProfile(); } catch (_) {}
-
-  if (profile) {
-    document.getElementById('welcomeOverlay').classList.add('hidden');
-  } else {
-    profile = await promptForProfile();
-  }
-
-  applyProfileToHeader(profile);
-
-  // 4. Wire profile pill → edit modal
-  document.getElementById('userPill').addEventListener('click', () => {
-    openEditProfileModal(loadProfile());
-  });
-
-  // 5. If a valid join link was detected, set state to show that day and queue the modal
-  if (joinParams) {
-    selectedDay = joinParams.day;
-    pendingJoin = joinParams;
-  }
-
-  // 6. Build static labels, render shell, open Firestore listener
-  buildWeekLabels();
-  render();
-  startSync();
-
-  // Re-render every minute so past slots dim automatically
-  setInterval(render, 60 * 1000);
-})();
