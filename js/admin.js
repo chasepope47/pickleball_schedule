@@ -1,7 +1,7 @@
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getAuth, createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import {
-  db, doc, setDoc, updateDoc, getDocs, getDoc, deleteDoc, collection, serverTimestamp,
+  db, doc, setDoc, updateDoc, getDocs, deleteDoc, collection, serverTimestamp,
   signOut, FIREBASE_CONFIG,
 } from './firebase.js';
 import { state } from './state.js';
@@ -9,7 +9,6 @@ import { setModal, closeModal, makeBtn, showToast } from './ui.js';
 import { getInitials, ratingOptions } from './utils.js';
 import { renderAdminDeptContent } from './departments.js';
 import { BADGES } from './constants.js';
-import { setRes } from './schedule.js';
 
 // ── Secondary Firebase app (creates users without signing out the current user) ─
 
@@ -485,10 +484,13 @@ async function _renderTournamentsForm() {
     const snap = await getDocs(collection(db, 'players'));
     const players = snap.docs.map(d => ({ uid: d.id, ...d.data() })).filter(p => p.status !== 'blocked');
 
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
     content.innerHTML = `
       <div style="padding-top:8px">
         <p style="font-size:.85rem;color:var(--text-dim);margin-bottom:14px">
-          Schedule a tournament. This will automatically block public access to the selected courts.
+          Schedule a tournament for any future date. This automatically blocks public access to the selected courts.
         </p>
         <div class="form-group">
           <label>Tournament Name</label>
@@ -500,13 +502,8 @@ async function _renderTournamentsForm() {
             <select id="tCourt"><option value="1">Court 1</option><option value="2">Court 2</option></select>
           </div>
           <div class="form-group">
-            <label>Day</label>
-            <select id="tDay">
-              <option value="0">Monday</option><option value="1">Tuesday</option>
-              <option value="2">Wednesday</option><option value="3">Thursday</option>
-              <option value="4">Friday</option><option value="5">Saturday</option>
-              <option value="6">Sunday</option>
-            </select>
+            <label>Date</label>
+            <input type="date" id="tDate" min="${todayStr}" />
           </div>
         </div>
         <div class="form-row">
@@ -536,11 +533,12 @@ async function _renderTournamentsForm() {
     document.getElementById('doTournamentBtn').addEventListener('click', async () => {
       const name = document.getElementById('tName').value.trim();
       const court = parseInt(document.getElementById('tCourt').value);
-      const dayIdx = parseInt(document.getElementById('tDay').value);
+      const dateStr = document.getElementById('tDate').value;
       const startHour = parseInt(document.getElementById('tStart').value);
       const endHour = parseInt(document.getElementById('tEnd').value);
 
       if (!name) return showToast('Please provide a tournament name.', 'error');
+      if (!dateStr) return showToast('Please select a date.', 'error');
       if (startHour >= endHour) return showToast('End time must be after start time.', 'error');
 
       const selected = Array.from(document.querySelectorAll('.t-player-cb:checked')).map(cb => ({
@@ -555,18 +553,30 @@ async function _renderTournamentsForm() {
       btn.textContent = 'Locking Schedule...';
 
       try {
-        // Loop through the selected hours and lock the slots
+        const [y, m, d] = dateStr.split('-').map(Number);
+        const selectedDate = new Date(y, m - 1, d);
+        
+        let dayOfWeek = selectedDate.getDay();
+        let targetDayIdx = dayOfWeek === 0 ? 6 : dayOfWeek - 1; 
+        
+        const monday = new Date(selectedDate);
+        monday.setDate(selectedDate.getDate() - targetDayIdx);
+        const targetWeekKey = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+
+        const updates = {};
         for (let h = startHour; h < endHour; h++) {
-          await setRes(court, dayIdx, h, {
+          updates[`${court}_${targetDayIdx}_${h}`] = {
             isTournament: true,
             tournamentName: name,
             players: selected.map(s => ({ uid: s.uid, firstName: s.name.split(' ')[0], lastName: s.name.split(' ')[1] || '' })),
-            maxPlayers: selected.length, // Setting maxPlayers equal to the roster count prevents the public from joining
+            maxPlayers: selected.length,
             createdBy: state.currentUser.uid
-          });
+          };
         }
 
-        showToast(`Schedule locked for ${name}.`);
+        await setDoc(doc(db, 'reservations', targetWeekKey), updates, { merge: true });
+
+        showToast(`Schedule locked for ${name} on ${dateStr}.`);
         closeModal();
       } catch (err) {
         console.error('Failed to lock schedule:', err);
