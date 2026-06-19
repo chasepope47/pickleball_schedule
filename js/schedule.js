@@ -5,7 +5,7 @@ import {
 import { state } from './state.js';
 import { COURTS, HOURS, MAX_PLAYERS, DAY_NAMES, DAY_SHORT } from './constants.js';
 import { dayDate, slotDateTime, fmtHour, slotLabel, getInitials, WEEK_MONDAY, WEEK_KEY } from './utils.js';
-import { showToast } from './ui.js';
+import { setModal, closeModal, makeBtn, showToast } from './ui.js';
 import { requireWaiver } from './profile.js';
 import { openMatchLogModal, openMatchDetailModal } from './matches.js';
 
