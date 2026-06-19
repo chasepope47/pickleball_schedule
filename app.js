@@ -10,7 +10,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import {
   getFirestore, doc, setDoc, getDoc, getDocs, updateDoc, onSnapshot,
-  deleteField, collection, addDoc, serverTimestamp, increment,
+  deleteField, collection, addDoc, serverTimestamp, increment, query, where,
 } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 import { FIREBASE_CONFIG }
   from './firebase-config.js';
@@ -109,6 +109,9 @@ let appInitialized = false; // guard so startSync only runs once
 
 /** data[court][dayIdx][hour] = { players: [...], maxPlayers, createdBy } */
 let data = { 1: {}, 2: {} };
+
+/** slotKey (`court_dayIdx_hour`) → logged match doc for the current week */
+const matchCache = new Map();
 
 
 // =============================================================================
@@ -461,7 +464,25 @@ function applySnapshot(flatMap) {
   }
 }
 
+async function loadWeekMatches() {
+  if (!currentUser) return;
+  try {
+    const snap = await getDocs(
+      query(collection(db, 'matches'), where('uid', '==', currentUser.uid))
+    );
+    matchCache.clear();
+    snap.docs.forEach(d => {
+      const m = d.data();
+      if (m.weekKey === WEEK_KEY) matchCache.set(m.slotKey, { id: d.id, ...m });
+    });
+    render();
+  } catch (err) {
+    console.warn('Could not load match history:', err);
+  }
+}
+
 function startSync() {
+  loadWeekMatches();
   onSnapshot(
     weekDocRef,
     snap => applySnapshot(snap.exists() ? snap.data() : {}),
@@ -617,8 +638,26 @@ function buildSlots(court) {
 
     let stateClass, actionText, clickable;
     if (isPast) {
-      if (amIIn) { stateClass = 'past-result'; actionText = 'Log Match'; clickable = true; }
-      else        { stateClass = 'past';        actionText = '';          clickable = false; }
+      if (amIIn) {
+        const logged = matchCache.get(`${court}_${selectedDay}_${hour}`);
+        if (logged) {
+          const lt   = logged.type;
+          stateClass = lt === 'competitive'
+            ? (logged.won ? 'past-result win-logged' : 'past-result loss-logged')
+            : 'past-result friendly-logged';
+          actionText = lt === 'competitive'
+            ? (logged.won ? '✓ Win' : '✗ Loss')
+            : '🤝 Friendly';
+        } else {
+          stateClass = 'past-result';
+          actionText = 'Log Match';
+        }
+        clickable = true;
+      } else {
+        stateClass = 'past';
+        actionText = '';
+        clickable  = false;
+      }
     } else if (isOpen) {
       stateClass = 'open';     actionText = 'Reserve →'; clickable = true;
     } else if (amIIn) {
@@ -655,7 +694,11 @@ function buildSlots(court) {
 
     if (clickable) {
       if (isPast && amIIn) {
-        slot.addEventListener('click', () => openMatchLogModal(court, selectedDay, hour));
+        const logged = matchCache.get(`${court}_${selectedDay}_${hour}`);
+        slot.addEventListener('click', () => {
+          if (logged) openMatchDetailModal(logged);
+          else openMatchLogModal(court, selectedDay, hour);
+        });
       } else if (isOpen) {
         slot.addEventListener('click', () => openReserveModal(court, selectedDay, hour));
       } else if (amIIn) {
@@ -901,17 +944,19 @@ function openLeaveModal(court, dayIdx, hour, players) {
 // =============================================================================
 
 function openMatchLogModal(court, dayIdx, hour) {
-  const dateStr = dayDate(dayIdx).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  let matchType  = 'friendly';
-  let matchResult = null; // 'win' | 'loss'
-  let numGames   = 3;
+  const dateStr      = dayDate(dayIdx).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  let matchType      = 'friendly';
+  let matchResult    = null;
+  let numGames       = 3;
+  const slotPlayers  = normalizeRes(getRes(court, dayIdx, hour));
+  const otherPlayers = slotPlayers.filter(p => p.uid !== currentUser?.uid);
 
   setModal({
     title: 'Log Match Result',
     sub:   `Court ${court} · ${DAY_NAMES[dayIdx]}, ${dateStr} · ${fmtHour(hour)}`,
     body: `
       <p style="font-size:.85rem;color:var(--text-dim);margin-bottom:14px">
-        Record this session. Competitive results update your W/L record.
+        Record this session. Competitive results update your W/L record and rating.
       </p>
       <div class="match-type-row">
         <button class="match-type-btn active" id="mtFriendly">🤝 Friendly</button>
@@ -937,6 +982,26 @@ function openMatchLogModal(court, dayIdx, hour) {
           </div>
         </div>
       </div>
+      ${otherPlayers.length > 0 ? `
+      <div class="form-group" style="margin-top:14px">
+        <label>Rate your opponents / teammates</label>
+        <div class="player-rate-list" id="playerRateList">
+          ${otherPlayers.map(p => `
+            <div class="player-rate-row">
+              <div class="p-avatar">${getInitials(p.firstName, p.lastName)}</div>
+              <span class="p-rate-name">${p.firstName} ${p.lastName[0]}.</span>
+              <div class="thumb-btns">
+                <button class="thumb-btn up" data-uid="${p.uid}" data-thumb="up" type="button">👍</button>
+                <button class="thumb-btn dn" data-uid="${p.uid}" data-thumb="down" type="button">👎</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>` : ''}
+      <div class="form-group" style="margin-top:10px">
+        <label for="matchComment">Match Notes <span class="label-hint">(optional)</span></label>
+        <textarea id="matchComment" class="match-comment" placeholder="How did the game go?..." rows="2"></textarea>
+      </div>
     `,
     actions: [
       makeBtn('Cancel', 'btn-secondary', closeModal),
@@ -956,19 +1021,31 @@ function openMatchLogModal(court, dayIdx, hour) {
           }
         }
 
-        // Save to Firestore matches collection
+        // Collect player ratings and comment
+        const playerRatings = {};
+        document.querySelectorAll('#playerRateList .thumb-btn.active').forEach(btn => {
+          playerRatings[btn.dataset.uid] = btn.dataset.thumb;
+        });
+        const comment = document.getElementById('matchComment')?.value.trim() || '';
+
         try {
-          await addDoc(collection(db, 'matches'), {
-            uid:     currentUser.uid,
-            slotKey: `${court}_${dayIdx}_${hour}`,
+          const slotKey   = `${court}_${dayIdx}_${hour}`;
+          const matchData = {
+            uid: currentUser.uid,
+            slotKey,
             weekKey: WEEK_KEY,
             court, dayIdx, hour,
             type: matchType,
+            players: slotPlayers,
+            ...(Object.keys(playerRatings).length ? { playerRatings } : {}),
+            ...(comment ? { comment } : {}),
             ...(matchType === 'competitive' ? {
               gamesPlayed: numGames, scores, won: matchResult === 'win',
             } : {}),
             recordedAt: serverTimestamp(),
-          });
+          };
+          const matchRef = await addDoc(collection(db, 'matches'), matchData);
+          matchCache.set(slotKey, { id: matchRef.id, ...matchData });
 
           if (matchType === 'competitive') {
             const won       = matchResult === 'win';
@@ -990,12 +1067,23 @@ function openMatchLogModal(court, dayIdx, hour) {
             closeModal();
             showToast('Friendly match recorded!');
           }
+          render();
         } catch (err) {
           console.error('Match log failed:', err);
           showToast('Could not save match — please try again.', 'error');
         }
       }),
     ],
+  });
+
+  // Wire thumb buttons
+  document.querySelectorAll('#playerRateList .thumb-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const uid = btn.dataset.uid;
+      document.querySelectorAll(`#playerRateList .thumb-btn[data-uid="${uid}"]`)
+        .forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
   });
 
   // Type toggle
@@ -1037,6 +1125,67 @@ function openMatchLogModal(court, dayIdx, hour) {
     matchResult = 'loss';
     document.getElementById('resultLoss').classList.add('active');
     document.getElementById('resultWin').classList.remove('active');
+  });
+}
+
+
+// =============================================================================
+// MATCH DETAIL MODAL
+// =============================================================================
+
+function openMatchDetailModal(match) {
+  const typeLabel  = match.type === 'competitive'
+    ? (match.won ? '🏆 Competitive — Win' : '✗ Competitive — Loss')
+    : '🤝 Friendly';
+  const badgeClass = match.type === 'competitive' ? (match.won ? 'win' : 'loss') : 'friendly';
+  const dateStr    = dayDate(match.dayIdx).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  const scoresHtml = (match.scores || []).length
+    ? `<div class="match-scores">${match.scores.map((s, i) =>
+        `<span class="score-chip">Game ${i + 1}: <strong>${s.mine}–${s.theirs}</strong></span>`
+      ).join('')}</div>`
+    : '';
+
+  const ratedPlayers = (match.players || []).filter(p =>
+    p.uid !== currentUser?.uid && match.playerRatings?.[p.uid]
+  );
+  const ratingsHtml = ratedPlayers.length
+    ? `<div class="match-player-ratings">
+        ${ratedPlayers.map(p => `
+          <div class="match-rate-row">
+            <div class="p-avatar">${getInitials(p.firstName, p.lastName)}</div>
+            <span class="match-rate-name">${p.firstName} ${p.lastName[0]}.</span>
+            <span class="rate-thumb">${match.playerRatings[p.uid] === 'up' ? '👍' : '👎'}</span>
+          </div>`).join('')}
+      </div>`
+    : '';
+
+  setModal({
+    title: 'Match Details',
+    sub:   `Court ${match.court} · ${DAY_NAMES[match.dayIdx]}, ${dateStr} · ${fmtHour(match.hour)}`,
+    body: `
+      <div class="match-result-badge ${badgeClass}">${typeLabel}</div>
+      ${scoresHtml}
+      ${ratingsHtml}
+      <div class="form-group">
+        <label for="editMatchComment">Match Notes <span class="label-hint">(optional)</span></label>
+        <textarea id="editMatchComment" class="match-comment" rows="2" placeholder="Add a note...">${match.comment || ''}</textarea>
+      </div>
+    `,
+    actions: [
+      makeBtn('Close', 'btn-secondary', closeModal),
+      makeBtn('Save Notes', 'btn-primary', async () => {
+        const comment = document.getElementById('editMatchComment').value.trim();
+        try {
+          await updateDoc(doc(db, 'matches', match.id), { comment });
+          matchCache.set(match.slotKey, { ...match, comment });
+          closeModal();
+          showToast('Match notes saved.');
+        } catch {
+          showToast('Could not save — please try again.', 'error');
+        }
+      }),
+    ],
   });
 }
 

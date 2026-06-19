@@ -722,6 +722,26 @@ footer {
   color: var(--cyan-dim);
 }
 
+/* Already-logged past slot variants */
+.slot.past-result.win-logged {
+  border-color: rgba(62, 207, 142, 0.3);
+}
+.slot.past-result.win-logged .slot-action {
+  border: 1px solid rgba(62, 207, 142, 0.4);
+  color: var(--green);
+}
+.slot.past-result.loss-logged {
+  border-color: rgba(229, 57, 53, 0.25);
+}
+.slot.past-result.loss-logged .slot-action {
+  border: 1px solid rgba(229, 57, 53, 0.35);
+  color: var(--red);
+}
+.slot.past-result.friendly-logged .slot-action {
+  border: 1px solid var(--cyan-border);
+  color: var(--cyan);
+}
+
 
 /* =============================================================================
    MODAL
@@ -1139,6 +1159,127 @@ footer {
 .lb-w   { font-size: 0.78rem; font-weight: 800; color: var(--green); }
 .lb-l   { font-size: 0.78rem; font-weight: 800; color: var(--red);   }
 .lb-pct { font-size: 0.7rem; color: var(--text-muted); min-width: 32px; text-align: right; }
+
+
+/* =============================================================================
+   PLAYER THUMB RATINGS + MATCH COMMENT
+   ============================================================================= */
+
+.player-rate-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.player-rate-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.p-rate-name {
+  flex: 1;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.thumb-btns { display: flex; gap: 6px; }
+
+.thumb-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border);
+  background: var(--hover);
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s, background 0.15s;
+  line-height: 1;
+}
+
+.thumb-btn.up.active  { border-color: var(--green); background: rgba(62,207,142,0.12); }
+.thumb-btn.dn.active  { border-color: var(--red);   background: rgba(229,57,53,0.1); }
+.thumb-btn:hover:not(.active) { border-color: var(--text-muted); }
+
+.match-comment {
+  width: 100%;
+  padding: 9px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.86rem;
+  color: var(--text);
+  outline: none;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.5;
+  transition: border-color 0.15s;
+}
+.match-comment:focus { border-color: var(--cyan); }
+.match-comment::placeholder { color: var(--text-muted); }
+
+
+/* =============================================================================
+   MATCH DETAIL MODAL
+   ============================================================================= */
+
+.match-result-badge {
+  text-align: center;
+  font-size: 0.95rem;
+  font-weight: 800;
+  padding: 10px 14px;
+  border-radius: 10px;
+  margin-bottom: 12px;
+}
+.match-result-badge.win      { background: rgba(62,207,142,0.1);  color: var(--green); }
+.match-result-badge.loss     { background: rgba(229,57,53,0.08);  color: var(--red);   }
+.match-result-badge.friendly { background: var(--cyan-bg);        color: var(--cyan);  }
+
+.match-scores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.score-chip {
+  font-size: 0.8rem;
+  padding: 4px 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--text-dim);
+}
+
+.match-player-ratings {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+
+.match-rate-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.match-rate-name { flex: 1; }
+.rate-thumb { font-size: 1rem; }
 
 
 /* =============================================================================
