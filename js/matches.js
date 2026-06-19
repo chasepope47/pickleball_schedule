@@ -2,8 +2,8 @@ import {
   db, doc, addDoc, updateDoc, collection, serverTimestamp, increment, deleteField,
 } from './firebase.js';
 import { state } from './state.js';
-import { DAY_NAMES, WEEK_KEY } from './constants.js';
-import { dayDate, fmtHour, getInitials, adjustRating } from './utils.js';
+import { DAY_NAMES } from './constants.js';
+import { dayDate, fmtHour, getInitials, adjustRating, WEEK_KEY } from './utils.js';
 import { setModal, closeModal, makeBtn, showToast } from './ui.js';
 import {
   setCachedProfile, loadFirestoreProfile, applyProfileToHeader,
