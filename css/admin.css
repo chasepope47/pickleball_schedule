@@ -1,0 +1,236 @@
+/* =============================================================================
+   ADMIN PANEL
+   ============================================================================= */
+
+/* Wider modal variant used by the admin panel */
+.modal.modal-wide {
+  max-width: 620px;
+}
+
+/* Admin header button — matches leaderboard button style */
+.btn-admin {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  flex-shrink: 0;
+}
+.btn-admin:hover {
+  border-color: var(--orange);
+  box-shadow: 0 0 8px var(--orange-bg);
+}
+
+/* Admin tab switcher */
+.admin-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--hover);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 14px;
+}
+
+.admin-tab {
+  flex: 1;
+  padding: 8px 10px;
+  border: none;
+  outline: none;
+  border-radius: 7px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s;
+}
+
+.admin-tab.active {
+  background: var(--card);
+  color: var(--text);
+  box-shadow: 0 1px 4px var(--shadow);
+}
+
+.admin-tab:not(.active):hover { color: var(--text); }
+
+/* User list */
+.admin-user-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.admin-user-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: border-color 0.15s;
+}
+
+.admin-user-row.is-blocked {
+  opacity: 0.6;
+  border-color: rgba(229, 57, 53, 0.25);
+}
+
+.admin-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--cyan);
+  color: #000;
+  font-size: 0.72rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.admin-avatar.has-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.admin-user-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-user-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-user-meta {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-user-badges {
+  display: flex;
+  gap: 5px;
+  margin-top: 2px;
+}
+
+/* Status / role badges */
+.admin-badge {
+  font-size: 0.62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 7px;
+  border-radius: 20px;
+}
+
+.admin-badge.active {
+  background: rgba(62, 207, 142, 0.1);
+  border: 1px solid rgba(62, 207, 142, 0.35);
+  color: var(--green);
+}
+
+.admin-badge.blocked {
+  background: rgba(229, 57, 53, 0.08);
+  border: 1px solid rgba(229, 57, 53, 0.3);
+  color: var(--red);
+}
+
+.admin-badge.admin-role {
+  background: var(--orange-bg);
+  border: 1px solid var(--orange-border);
+  color: var(--orange);
+}
+
+/* Action buttons inside user rows */
+.admin-user-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.admin-btn {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--hover);
+  color: var(--text-dim);
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.admin-btn.block:hover   { border-color: var(--red);    color: var(--red);    background: rgba(229,57,53,0.08); }
+.admin-btn.unblock:hover { border-color: var(--green);  color: var(--green);  background: rgba(62,207,142,0.08); }
+.admin-btn.delete:hover  { border-color: var(--red);    color: var(--red);    background: rgba(229,57,53,0.08); }
+.admin-btn.promote:hover { border-color: var(--orange); color: var(--orange); background: var(--orange-bg); }
+.admin-btn.demote:hover  { border-color: var(--red);    color: var(--red);    background: rgba(229,57,53,0.08); }
+
+.admin-you {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Created account confirmation card */
+.admin-created-card {
+  background: var(--cyan-bg);
+  border: 1px solid var(--cyan-border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-top: 6px;
+}
+
+.admin-created-title {
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: var(--cyan);
+  margin-bottom: 12px;
+}
+
+.admin-created-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.82rem;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--cyan-border);
+}
+
+.admin-created-row:last-of-type { border-bottom: none; }
+.admin-created-row strong       { color: var(--text-dim); }
+.admin-created-row span         { color: var(--text); font-weight: 600; }
+.admin-created-row span.mono    { font-family: monospace; font-size: 0.9rem; color: var(--cyan); }
+
+.admin-created-hint {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  margin-top: 10px;
+  line-height: 1.5;
+}

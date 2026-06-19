@@ -1,6 +1,6 @@
 import {
   auth, db, doc, setDoc, serverTimestamp,
-  createUserWithEmailAndPassword, signInWithEmailAndPassword,
+  signInWithEmailAndPassword,
   sendPasswordResetEmail, onAuthStateChanged, signOut,
 } from './firebase.js';
 import { state } from './state.js';
@@ -13,27 +13,17 @@ import {
 import {
   buildWeekLabels, startSync, render, getJoinParams, openJoinModal,
 } from './schedule.js';
+import { wireAdminBtn } from './admin.js';
 
 // ── Auth overlay helpers ─────────────────────────────────────────────────────
 
 const overlay = document.getElementById('welcomeOverlay');
 
-function showAuthOverlay() { overlay.classList.remove('hidden'); }
+function showAuthOverlay() {
+  overlay.classList.remove('hidden');
+  document.getElementById('loginBtn').textContent = 'Sign In →';
+}
 function hideAuthOverlay() { overlay.classList.add('hidden'); }
-
-// ── Tab switching ────────────────────────────────────────────────────────────
-
-document.getElementById('authTabs').addEventListener('click', e => {
-  const tab = e.target.closest('.auth-tab');
-  if (!tab) return;
-  document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
-  tab.classList.add('active');
-  const panel = tab.dataset.panel;
-  document.getElementById('panelSignIn').style.display = panel === 'signIn' ? 'block' : 'none';
-  document.getElementById('panelSignUp').style.display = panel === 'signUp' ? 'block' : 'none';
-  document.getElementById('loginError').classList.add('hidden');
-  document.getElementById('signupError').classList.add('hidden');
-});
 
 // ── Sign In ──────────────────────────────────────────────────────────────────
 
@@ -77,60 +67,6 @@ document.getElementById('forgotBtn').addEventListener('click', async () => {
   }
 });
 
-// ── Create Account ───────────────────────────────────────────────────────────
-
-document.getElementById('signupBtn').addEventListener('click', async () => {
-  const fn       = document.getElementById('signupFirst');
-  const ln       = document.getElementById('signupLast');
-  const emailEl  = document.getElementById('signupEmail');
-  const passEl   = document.getElementById('signupPassword');
-  const waiverCb = document.getElementById('signupWaiver');
-  const errorEl  = document.getElementById('signupError');
-
-  const firstName = fn.value.trim();
-  const lastName  = ln.value.trim();
-  const email     = emailEl.value.trim();
-  const password  = passEl.value;
-
-  fn.classList.toggle('error', !firstName);
-  ln.classList.toggle('error', !lastName);
-  emailEl.classList.toggle('error', !email);
-  passEl.classList.toggle('error', password.length < 6);
-
-  if (!firstName || !lastName || !email || password.length < 6) return;
-
-  if (!waiverCb.checked) {
-    const label = document.getElementById('signupWaiverLabel');
-    const box   = document.getElementById('signupWaiverBox');
-    label.classList.add('error');
-    box.classList.add('error');
-    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    return;
-  }
-
-  errorEl.classList.add('hidden');
-  const rating = parseFloat(document.getElementById('signupRating').value) || 3.0;
-
-  try {
-    document.getElementById('signupBtn').textContent = 'Creating account…';
-    const { user } = await createUserWithEmailAndPassword(auth, email, password);
-
-    const profile = {
-      firstName, lastName, rating,
-      wins: 0, losses: 0,
-      waiverSigned: true,
-      email: user.email,
-      createdAt: serverTimestamp(),
-    };
-    await setDoc(doc(db, 'players', user.uid), profile);
-    setCachedProfile(profile);
-  } catch (err) {
-    document.getElementById('signupBtn').textContent = 'Create Account →';
-    errorEl.textContent = authMsg(err.code);
-    errorEl.classList.remove('hidden');
-  }
-});
-
 // ── Auth State Listener (app entry point) ────────────────────────────────────
 
 onAuthStateChanged(auth, async (user) => {
@@ -139,8 +75,6 @@ onAuthStateChanged(auth, async (user) => {
     state.currentProfile = null;
     state.appInitialized = false;
     showAuthOverlay();
-    document.getElementById('loginBtn').textContent  = 'Sign In →';
-    document.getElementById('signupBtn').textContent = 'Create Account →';
     return;
   }
 
@@ -151,6 +85,13 @@ onAuthStateChanged(auth, async (user) => {
 
   try {
     const firestoreProfile = await loadFirestoreProfile(user.uid);
+
+    if (firestoreProfile?.status === 'blocked') {
+      showToast('Your account has been suspended. Contact management.', 'error');
+      await signOut(auth);
+      return;
+    }
+
     if (firestoreProfile) {
       state.currentProfile = firestoreProfile;
       applyProfileToHeader(state.currentProfile);
@@ -160,7 +101,7 @@ onAuthStateChanged(auth, async (user) => {
   }
 
   if (!state.currentProfile) {
-    showToast('Could not load your profile. Please sign in again.', 'error');
+    showToast('Could not load your profile. Contact management.', 'error');
     await signOut(auth);
     return;
   }
@@ -170,6 +111,7 @@ onAuthStateChanged(auth, async (user) => {
   if (!state.appInitialized) {
     state.appInitialized = true;
     wireProfilePill();
+    wireAdminBtn();
     buildWeekLabels();
 
     const joinParams = getJoinParams();
@@ -183,5 +125,6 @@ onAuthStateChanged(auth, async (user) => {
     setInterval(render, 60_000);
   } else {
     applyProfileToHeader(state.currentProfile);
+    wireAdminBtn();
   }
 });

@@ -10,6 +10,7 @@ export function setModal({ title, sub, body, actions }) {
 
 export function closeModal() {
   document.getElementById('modalOverlay').classList.remove('active');
+  document.querySelector('.modal').classList.remove('modal-wide');
 }
 
 export function makeBtn(text, cls, handler) {

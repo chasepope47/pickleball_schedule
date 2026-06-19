@@ -3,25 +3,45 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Reservations — one document per week (keyed YYYY-MM-DD)
-    match /reservations/{weekId} {
-      allow read:  if request.auth != null;
-      allow write: if request.auth != null
-                   && weekId.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}');
+    function isSignedIn() {
+      return request.auth != null;
     }
 
-    // Player profiles — each user owns their own document
+    // Checks the caller's own player doc for the admin role.
+    // The extra exists() guard prevents errors when the doc doesn't exist yet.
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/players/$(request.auth.uid))
+        && get(/databases/$(database)/documents/players/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Player profiles
     match /players/{userId} {
-      allow read:   if request.auth != null;
-      allow create: if request.auth.uid == userId;
-      allow update: if request.auth.uid == userId;
+      // Any signed-in user can read their own profile; admins can read all.
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+
+      // Only admins may create profiles (account creation goes through admin panel).
+      allow create: if isAdmin();
+
+      // Users may update their own profile; admins may update any profile.
+      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+
+      // Only admins may delete profiles.
+      allow delete: if isAdmin();
     }
 
-    // Match records — authenticated users can create; only creator can update
+    // Weekly reservation documents (one per week, keyed YYYY-MM-DD)
+    match /reservations/{weekId} {
+      allow read:  if isSignedIn();
+      allow write: if isSignedIn() && weekId.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}');
+    }
+
+    // Match records
     match /matches/{matchId} {
-      allow read:   if request.auth != null;
-      allow create: if request.auth != null;
-      allow update: if resource.data.uid == request.auth.uid;
+      allow read:   if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
     }
 
   }

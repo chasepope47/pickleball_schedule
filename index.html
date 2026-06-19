@@ -18,83 +18,20 @@
       <h2>SafeStreets</h2>
       <p class="welcome-sub">Pickleball Court Reservations</p>
 
-      <div class="auth-tabs" id="authTabs">
-        <button class="auth-tab active" data-panel="signIn">Sign In</button>
-        <button class="auth-tab" data-panel="signUp">Create Account</button>
-      </div>
-
       <!-- ── Sign In ── -->
-      <div id="panelSignIn">
-        <div class="form-group">
-          <label for="loginEmail">Email</label>
-          <input type="email" id="loginEmail" placeholder="you@safestreets.com"
-                 autocomplete="email" />
-        </div>
-        <div class="form-group">
-          <label for="loginPassword">Password</label>
-          <input type="password" id="loginPassword" placeholder="••••••••"
-                 autocomplete="current-password" />
-        </div>
-        <div class="auth-error hidden" id="loginError"></div>
-        <button class="btn btn-primary btn-full" id="loginBtn">Sign In →</button>
-        <button class="forgot-link" id="forgotBtn">Forgot password?</button>
+      <div class="form-group">
+        <label for="loginEmail">Email</label>
+        <input type="email" id="loginEmail" placeholder="you@safestreets.com"
+               autocomplete="email" />
       </div>
-
-      <!-- ── Create Account ── -->
-      <div id="panelSignUp" style="display:none">
-        <div class="form-row">
-          <div class="form-group">
-            <label for="signupFirst">First Name</label>
-            <input type="text" id="signupFirst" placeholder="Jane" maxlength="40"
-                   autocomplete="given-name" />
-          </div>
-          <div class="form-group">
-            <label for="signupLast">Last Name</label>
-            <input type="text" id="signupLast" placeholder="Smith" maxlength="40"
-                   autocomplete="family-name" />
-          </div>
-        </div>
-        <div class="form-group">
-          <label for="signupEmail">Email</label>
-          <input type="email" id="signupEmail" placeholder="you@safestreets.com"
-                 autocomplete="email" />
-        </div>
-        <div class="form-group">
-          <label for="signupPassword">Password <span class="label-hint">(min 6 characters)</span></label>
-          <input type="password" id="signupPassword" placeholder="Choose a password"
-                 minlength="6" autocomplete="new-password" />
-        </div>
-        <div class="form-group">
-          <label for="signupRating">Skill Level</label>
-          <select id="signupRating">
-            <option value="2.0">2.0 – Beginner</option>
-            <option value="2.5">2.5 – Advanced Beginner</option>
-            <option value="3.0" selected>3.0 – Intermediate</option>
-            <option value="3.5">3.5 – Advanced Intermediate</option>
-            <option value="4.0">4.0 – Advanced</option>
-            <option value="4.5">4.5 – Expert</option>
-            <option value="5.0">5.0 – Professional</option>
-          </select>
-        </div>
-
-        <div class="waiver-section">
-          <div class="waiver-box" id="signupWaiverBox">
-            <p class="waiver-title">Waiver &amp; Release of Liability</p>
-            <p><strong>Assumption of Risk.</strong> Pickleball is a physical sport. I understand that participation involves inherent risks including, but not limited to, physical exertion, falls, collisions with other players or equipment, muscle strains, joint injuries, and other bodily harm.</p>
-            <p><strong>Release of Liability.</strong> I, on behalf of myself, my heirs, and personal representatives, voluntarily release, waive, and discharge SafeStreets, its officers, employees, and agents from any and all liability, claims, or demands arising from my participation in pickleball activities at their facilities.</p>
-            <p><strong>Health Acknowledgment.</strong> I confirm I am in adequate physical condition to participate in this activity. I understand it is my responsibility to consult a physician before participating if I have any health concerns.</p>
-            <p><strong>Facility Rules.</strong> I agree to follow all facility rules, court etiquette, and instructions of facility staff, and to treat all participants with respect.</p>
-            <p>This agreement is effective for all court reservations made through the SafeStreets scheduling system.</p>
-          </div>
-          <label class="waiver-check" id="signupWaiverLabel">
-            <input type="checkbox" id="signupWaiver" />
-            <span>I have read and agree to the Waiver &amp; Release of Liability above</span>
-          </label>
-        </div>
-
-        <div class="auth-error hidden" id="signupError"></div>
-        <button class="btn btn-primary btn-full" id="signupBtn">Create Account →</button>
+      <div class="form-group">
+        <label for="loginPassword">Password</label>
+        <input type="password" id="loginPassword" placeholder="••••••••"
+               autocomplete="current-password" />
       </div>
+      <div class="auth-error hidden" id="loginError"></div>
+      <button class="btn btn-primary btn-full" id="loginBtn">Sign In →</button>
+      <button class="forgot-link" id="forgotBtn">Forgot password?</button>
 
     </div>
   </div>
@@ -110,6 +47,7 @@
     </div>
 
     <div class="header-right">
+      <button class="btn-admin" id="adminBtn" title="Admin panel" style="display:none">⚙️</button>
       <button class="btn-leaderboard" id="leaderboardBtn" title="View leaderboard">🏆</button>
       <button class="theme-toggle" id="themeToggle" title="Toggle light/dark mode">
         <svg id="themeIconDark" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
