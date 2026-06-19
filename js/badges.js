@@ -38,7 +38,7 @@ export async function checkAndAwardBadges(matchData) {
         toAdd.push('skunk');
     }
 
-    // Save synchronous badges immediately — no async gap before this write
+    // Save synchronous badges immediately
     if (toAdd.length > 0) {
       const allBadges = [...earned, ...toAdd];
       await updateDoc(doc(db, 'players', state.currentUser.uid), { badges: allBadges });
@@ -50,22 +50,56 @@ export async function checkAndAwardBadges(matchData) {
       });
     }
 
-    // TopDog check runs after sync badges are already saved
-    if (!new Set(state.currentProfile.badges || []).has('topDog') &&
-        matchData.type === 'competitive' && matchData.won) {
-      const snap     = await getDocs(collection(db, 'players'));
-      const myWins   = (state.currentProfile.wins || 0) + 1;
-      const topOther = snap.docs
-        .filter(d => d.id !== state.currentUser.uid)
-        .reduce((max, d) => Math.max(max, d.data().wins || 0), 0);
-      if (myWins > topOther) {
-        const latestEarned = new Set(state.currentProfile.badges || []);
-        if (!latestEarned.has('topDog')) {
-          const updated = [...latestEarned, 'topDog'];
-          await updateDoc(doc(db, 'players', state.currentUser.uid), { badges: updated });
-          state.currentProfile = { ...state.currentProfile, badges: updated };
-          setCachedProfile(state.currentProfile);
-          setTimeout(() => showBadgeToast(BADGES.topDog), 900);
+    // TopDog + TeamTopDog — single fetch for both
+    if (matchData.type === 'competitive' && matchData.won) {
+      const current       = new Set(state.currentProfile.badges || []);
+      const needsTopDog   = !current.has('topDog');
+      const myDept        = state.currentProfile.department;
+      const needsTeamDog  = !current.has('teamTopDog') && !!myDept;
+
+      if (needsTopDog || needsTeamDog) {
+        const snap = await getDocs(collection(db, 'players'));
+
+        // Individual topDog check
+        if (needsTopDog) {
+          const myWins   = (state.currentProfile.wins || 0) + 1;
+          const topOther = snap.docs
+            .filter(d => d.id !== state.currentUser.uid)
+            .reduce((max, d) => Math.max(max, d.data().wins || 0), 0);
+          if (myWins > topOther) {
+            const latest = new Set(state.currentProfile.badges || []);
+            if (!latest.has('topDog')) {
+              const updated = [...latest, 'topDog'];
+              await updateDoc(doc(db, 'players', state.currentUser.uid), { badges: updated });
+              state.currentProfile = { ...state.currentProfile, badges: updated };
+              setCachedProfile(state.currentProfile);
+              setTimeout(() => showBadgeToast(BADGES.topDog), 900);
+            }
+          }
+        }
+
+        // Team topDog check
+        if (needsTeamDog) {
+          const deptWins = {};
+          snap.docs.forEach(d => {
+            const p = d.data();
+            if (p.department) deptWins[p.department] = (deptWins[p.department] || 0) + (p.wins || 0);
+          });
+          deptWins[myDept] = (deptWins[myDept] || 0) + 1; // include current win
+          const myDeptWins = deptWins[myDept];
+          const topOtherDept = Object.entries(deptWins)
+            .filter(([id]) => id !== myDept)
+            .reduce((max, [, w]) => Math.max(max, w), 0);
+          if (myDeptWins > topOtherDept) {
+            const latest = new Set(state.currentProfile.badges || []);
+            if (!latest.has('teamTopDog')) {
+              const updated = [...latest, 'teamTopDog'];
+              await updateDoc(doc(db, 'players', state.currentUser.uid), { badges: updated });
+              state.currentProfile = { ...state.currentProfile, badges: updated };
+              setCachedProfile(state.currentProfile);
+              setTimeout(() => showBadgeToast(BADGES.teamTopDog), 3100);
+            }
+          }
         }
       }
     }

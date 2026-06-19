@@ -10,6 +10,7 @@ import {
 } from './profile.js';
 import { checkAndAwardBadges } from './badges.js';
 import { render, getRes, normalizeRes } from './schedule.js';
+import { refreshDeptSection } from './departments.js';
 
 // ── Match Log Modal ──────────────────────────────────────────────────────────
 
@@ -132,6 +133,7 @@ export function openMatchLogModal(court, dayIdx, hour) {
             setCachedProfile(state.currentProfile);
             closeModal();
             showToast(`${won ? 'Win' : 'Loss'} recorded! Rating → ${newRating}`);
+            refreshDeptSection(); // fire-and-forget
           } else {
             closeModal();
             showToast('Friendly match recorded!');
@@ -307,6 +309,7 @@ export function openMatchDetailModal(match) {
             await updateDoc(doc(db, 'players', state.currentUser.uid), profileUpdates);
             const fresh = await loadFirestoreProfile(state.currentUser.uid);
             if (fresh) { state.currentProfile = fresh; applyProfileToHeader(fresh); }
+            refreshDeptSection(); // fire-and-forget
           }
 
           const cachedMatch = { ...match, type: matchType };

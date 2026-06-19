@@ -14,6 +14,7 @@ import {
   buildWeekLabels, startSync, render, getJoinParams, openJoinModal,
 } from './schedule.js';
 import { wireAdminBtn } from './admin.js';
+import { refreshDeptSection } from './departments.js';
 
 // ── Auth overlay helpers ─────────────────────────────────────────────────────
 
@@ -123,6 +124,7 @@ onAuthStateChanged(auth, async (user) => {
     render();
     startSync();
     setInterval(render, 60_000);
+    refreshDeptSection(); // fire-and-forget
   } else {
     applyProfileToHeader(state.currentProfile);
     wireAdminBtn();

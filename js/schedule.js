@@ -11,6 +11,11 @@ import { openMatchLogModal, openMatchDetailModal } from './matches.js';
 
 const weekDocRef = doc(db, 'reservations', WEEK_KEY);
 
+function isStaff() {
+  const r = state.currentProfile?.role;
+  return r === 'admin' || r === 'manager';
+}
+
 // ── Reservation helpers ──────────────────────────────────────────────────────
 
 export function normalizeRes(res) {
@@ -296,6 +301,7 @@ function buildSlots(court) {
         ${!isOpen ? `<span class="slot-count">${players.length}/${MAX_PLAYERS}</span>` : ''}
         ${actionText ? `<span class="slot-action">${actionText}</span>` : ''}
         ${!isPast && !isOpen ? `<button class="slot-share-btn" title="Copy share link">🔗</button>` : ''}
+        ${isStaff() && players.length > 0 ? `<button class="slot-admin-btn" title="Manage slot">⚙</button>` : ''}
       </div>
       ${players.length > 0 ? `<div class="slot-players">${chips.join('')}</div>` : ''}
     `;
@@ -319,6 +325,11 @@ function buildSlots(court) {
     slot.querySelector('.slot-share-btn')?.addEventListener('click', e => {
       e.stopPropagation();
       copyShareLink(court, state.selectedDay, hour);
+    });
+
+    slot.querySelector('.slot-admin-btn')?.addEventListener('click', e => {
+      e.stopPropagation();
+      openManageSlotModal(court, state.selectedDay, hour);
     });
 
     container.appendChild(slot);
@@ -447,4 +458,69 @@ export function openLeaveModal(court, dayIdx, hour, players) {
       }),
     ],
   });
+}
+
+// ── Staff: manage any slot ────────────────────────────────────────────────────
+
+export function openManageSlotModal(court, dayIdx, hour) {
+  const dateStr = dayDate(dayIdx).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  function buildModal() {
+    const res     = getRes(court, dayIdx, hour);
+    const players = normalizeRes(res);
+
+    setModal({
+      title: `Manage Slot`,
+      sub:   `Court ${court} · ${DAY_NAMES[dayIdx]}, ${dateStr} · ${slotLabel(hour)}`,
+      body: players.length === 0
+        ? `<p style="text-align:center;color:var(--text-muted);padding:16px">No players in this slot.</p>`
+        : `
+          <div class="modal-player-list" id="mgSlotList">
+            ${players.map(p => {
+              const isMe = p.uid === state.currentUser?.uid;
+              return `
+                <div class="modal-player-row ${isMe ? 'is-me' : ''}">
+                  <div class="p-avatar">${getInitials(p.firstName, p.lastName)}</div>
+                  <span class="p-name">${p.firstName} ${p.lastName}${isMe ? ' (you)' : ''}</span>
+                  <span class="p-rating">${p.rating ? `★ ${p.rating}` : '—'}</span>
+                  <button class="admin-btn delete" style="font-size:.72rem;padding:3px 8px;flex-shrink:0"
+                          data-uid="${p.uid}">Remove</button>
+                </div>`;
+            }).join('')}
+          </div>
+          <p style="font-size:.78rem;color:var(--text-muted);margin-top:10px">
+            Removing the last player cancels the slot entirely.
+          </p>
+        `,
+      actions: [
+        players.length > 0
+          ? makeBtn('Clear Entire Slot', 'btn-danger', async () => {
+              await delRes(court, dayIdx, hour);
+              closeModal();
+              showToast('Slot cleared.');
+            })
+          : null,
+        makeBtn('Close', 'btn-secondary', closeModal),
+      ].filter(Boolean),
+    });
+
+    document.querySelectorAll('#mgSlotList [data-uid]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const uid      = btn.dataset.uid;
+        const current  = getRes(court, dayIdx, hour);
+        const remaining = normalizeRes(current).filter(p => p.uid !== uid);
+        if (remaining.length === 0) {
+          await delRes(court, dayIdx, hour);
+          closeModal();
+          showToast('Player removed — slot cleared.');
+        } else {
+          await setRes(court, dayIdx, hour, { ...current, players: remaining });
+          showToast('Player removed.');
+          buildModal(); // refresh modal with updated list
+        }
+      });
+    });
+  }
+
+  buildModal();
 }

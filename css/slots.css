@@ -45,7 +45,8 @@
   white-space: nowrap;
 }
 
-.slot-share-btn {
+.slot-share-btn,
+.slot-admin-btn {
   background: transparent;
   border: none;
   color: var(--text-muted);
@@ -57,6 +58,7 @@
   flex-shrink: 0;
 }
 .slot-share-btn:hover { color: var(--cyan); }
+.slot-admin-btn:hover { color: var(--orange); }
 
 .slot-players {
   display: flex;

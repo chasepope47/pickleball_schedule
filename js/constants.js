@@ -24,10 +24,11 @@ export const BADGES = {
   'holiday-xmaseve':     { icon: '⭐', name: 'Christmas Eve',     desc: 'Played on Christmas Eve' },
   'holiday-xmas':        { icon: '🎄', name: 'Christmas',         desc: 'Played on Christmas Day' },
   'holiday-newyearseve': { icon: '🥂', name: "New Year's Eve",    desc: "Played on New Year's Eve" },
-  skunk:     { icon: '🦨', name: 'The Skunk',  desc: 'Won a game 11–0' },
-  topDog:    { icon: '👑', name: 'Top Dog',    desc: 'Reached #1 on the leaderboard' },
-  earlyBird: { icon: '🌅', name: 'Early Bird', desc: 'Played a match before 8 AM' },
-  nightOwl:  { icon: '🦉', name: 'Night Owl',  desc: 'Played a match at or after 8 PM' },
+  skunk:        { icon: '🦨', name: 'The Skunk',       desc: 'Won a game 11–0' },
+  topDog:       { icon: '👑', name: 'Top Dog',         desc: 'Reached #1 on the leaderboard' },
+  teamTopDog:   { icon: '🏆', name: 'Team Champions',  desc: "Your department reached #1 on the team leaderboard" },
+  earlyBird:    { icon: '🌅', name: 'Early Bird',      desc: 'Played a match before 8 AM' },
+  nightOwl:     { icon: '🦉', name: 'Night Owl',       desc: 'Played a match at or after 8 PM' },
 };
 
 export const WAIVER_BODY_HTML = `

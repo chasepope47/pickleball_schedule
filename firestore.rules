@@ -54,5 +54,13 @@ service cloud.firestore {
       allow delete: if canManage();
     }
 
+    // Department collection
+    match /departments/{deptId} {
+      allow read:   if isSignedIn();
+      allow create: if canManage();
+      allow update: if canManage();
+      allow delete: if canManage();
+    }
+
   }
 }

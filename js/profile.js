@@ -3,6 +3,7 @@ import { state } from './state.js';
 import { BADGES, WAIVER_BODY_HTML } from './constants.js';
 import { getInitials, resizeImage } from './utils.js';
 import { setModal, closeModal, makeBtn, showToast } from './ui.js';
+import { getDeptById, openDeptModal } from './departments.js';
 
 const PROFILE_KEY = 'ss_profile_v2';
 
@@ -145,6 +146,14 @@ export function openEditProfileModal() {
         </div>
       </div>` : ''}
 
+      ${p.department ? `
+      <div class="dept-profile-row">
+        <span class="dept-profile-label">🏢 Department</span>
+        <button class="dept-profile-link" id="openMyDept">
+          ${getDeptById(p.department)?.name ?? p.department} →
+        </button>
+      </div>` : ''}
+
       ${'Notification' in window ? `
         <div class="notif-opt" style="margin-top:12px">
           <input type="checkbox" id="editNotif"
@@ -195,6 +204,11 @@ export function openEditProfileModal() {
       pendingPhotoUrl = dataUrl;
       document.getElementById('photoPreview').innerHTML = `<img src="${dataUrl}" alt="" />`;
     });
+  });
+
+  document.getElementById('openMyDept')?.addEventListener('click', () => {
+    closeModal();
+    openDeptModal(p.department);
   });
 
   document.getElementById('signWaiverBtn')?.addEventListener('click', () => {

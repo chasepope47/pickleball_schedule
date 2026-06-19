@@ -7,6 +7,7 @@ import {
 import { state } from './state.js';
 import { setModal, closeModal, makeBtn, showToast } from './ui.js';
 import { getInitials, ratingOptions } from './utils.js';
+import { renderAdminDeptContent } from './departments.js';
 
 // ── Secondary Firebase app (creates users without signing out the current user) ─
 
@@ -63,6 +64,7 @@ function _renderShell() {
   document.getElementById('modalBody').innerHTML = `
     <div class="admin-tabs" id="adminTabs">
       <button class="admin-tab active" data-view="users">Users</button>
+      <button class="admin-tab"        data-view="departments">Departments</button>
       <button class="admin-tab"        data-view="create">+ Create Account</button>
     </div>
     <div id="adminContent"></div>
@@ -77,6 +79,7 @@ function _renderShell() {
     document.querySelectorAll('.admin-tab').forEach(t =>
       t.classList.toggle('active', t.dataset.view === _activeView));
     if (_activeView === 'users') _loadUsers();
+    else if (_activeView === 'departments') renderAdminDeptContent(document.getElementById('adminContent'));
     else _renderCreateForm();
   });
 
