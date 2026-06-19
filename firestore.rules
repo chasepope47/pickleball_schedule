@@ -14,6 +14,13 @@ service cloud.firestore {
         : null;
     }
 
+    // Retrieves the role of the user being acted upon
+    function targetUserRole(targetUid) {
+      return exists(/databases/$(database)/documents/players/$(targetUid))
+        ? get(/databases/$(database)/documents/players/$(targetUid)).data.role
+        : null;
+    }
+
     function isAdmin()   { return callerRole() == 'admin';   }
     function isManager() { return callerRole() == 'manager'; }
 
@@ -50,8 +57,14 @@ service cloud.firestore {
     match /matches/{matchId} {
       allow read:   if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if isSignedIn() && (resource.data.uid == request.auth.uid || canManage());
-      allow delete: if canManage();
+      // Users can edit their own. Managers can edit unless target is Admin. Admins can edit anything.
+      allow update: if isSignedIn() && (
+        resource.data.uid == request.auth.uid || 
+        isAdmin() || 
+        (isManager() && targetUserRole(resource.data.uid) != 'admin')
+      );
+      // Managers can delete unless target is Admin. Admins can delete anything.
+      allow delete: if isAdmin() || (isManager() && targetUserRole(resource.data.uid) != 'admin');
     }
 
     // Department collection

@@ -1,5 +1,5 @@
 import {
-  db, doc, setDoc, updateDoc, onSnapshot, getDocs,
+  db, doc, setDoc, updateDoc, onSnapshot, getDocs, getDoc,
   deleteField, collection, query, where,
 } from './firebase.js';
 import { state } from './state.js';
@@ -464,27 +464,51 @@ export function openLeaveModal(court, dayIdx, hour, players) {
 
 export function openManageSlotModal(court, dayIdx, hour) {
   const dateStr = dayDate(dayIdx).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const myRole  = state.currentProfile?.role || 'user';
 
-  function buildModal() {
+  async function buildModal() {
     const res     = getRes(court, dayIdx, hour);
     const players = normalizeRes(res);
+
+    // Fetch the actual roles for each player in this slot
+    const playersWithRoles = await Promise.all(players.map(async p => {
+      if (p.uid === state.currentUser?.uid) return { ...p, role: myRole };
+      try {
+        const snap = await getDoc(doc(db, 'players', p.uid));
+        return { ...p, role: snap.exists() ? snap.data().role : 'user' };
+      } catch (e) {
+        return { ...p, role: 'user' };
+      }
+    }));
+
+    const canRemove = (targetRole) => {
+      if (myRole === 'admin') return true;
+      if (myRole === 'manager' && targetRole !== 'admin') return true;
+      return false;
+    };
+
+    const hasAdmin     = playersWithRoles.some(p => p.role === 'admin');
+    const canClearSlot = myRole === 'admin' || (myRole === 'manager' && !hasAdmin);
 
     setModal({
       title: `Manage Slot`,
       sub:   `Court ${court} · ${DAY_NAMES[dayIdx]}, ${dateStr} · ${slotLabel(hour)}`,
-      body: players.length === 0
+      body: playersWithRoles.length === 0
         ? `<p style="text-align:center;color:var(--text-muted);padding:16px">No players in this slot.</p>`
         : `
           <div class="modal-player-list" id="mgSlotList">
-            ${players.map(p => {
+            ${playersWithRoles.map(p => {
               const isMe = p.uid === state.currentUser?.uid;
+              const removeBtn = canRemove(p.role)
+                ? `<button class="admin-btn delete" style="font-size:.72rem;padding:3px 8px;flex-shrink:0" data-uid="${p.uid}">Remove</button>`
+                : `<span style="font-size:0.75rem; color:var(--text-muted);">Protected</span>`;
+
               return `
                 <div class="modal-player-row ${isMe ? 'is-me' : ''}">
                   <div class="p-avatar">${getInitials(p.firstName, p.lastName)}</div>
                   <span class="p-name">${p.firstName} ${p.lastName}${isMe ? ' (you)' : ''}</span>
                   <span class="p-rating">${p.rating ? `★ ${p.rating}` : '—'}</span>
-                  <button class="admin-btn delete" style="font-size:.72rem;padding:3px 8px;flex-shrink:0"
-                          data-uid="${p.uid}">Remove</button>
+                  ${removeBtn}
                 </div>`;
             }).join('')}
           </div>
@@ -493,7 +517,7 @@ export function openManageSlotModal(court, dayIdx, hour) {
           </p>
         `,
       actions: [
-        players.length > 0
+        (playersWithRoles.length > 0 && canClearSlot)
           ? makeBtn('Clear Entire Slot', 'btn-danger', async () => {
               await delRes(court, dayIdx, hour);
               closeModal();
@@ -506,8 +530,8 @@ export function openManageSlotModal(court, dayIdx, hour) {
 
     document.querySelectorAll('#mgSlotList [data-uid]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const uid      = btn.dataset.uid;
-        const current  = getRes(court, dayIdx, hour);
+        const uid       = btn.dataset.uid;
+        const current   = getRes(court, dayIdx, hour);
         const remaining = normalizeRes(current).filter(p => p.uid !== uid);
         if (remaining.length === 0) {
           await delRes(court, dayIdx, hour);
