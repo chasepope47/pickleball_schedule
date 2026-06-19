@@ -71,7 +71,7 @@ body {
 
 
 /* =============================================================================
-   WELCOME / PROFILE SETUP OVERLAY
+   AUTH OVERLAY + CARD
    ============================================================================= */
 
 .welcome-overlay {
@@ -83,17 +83,19 @@ body {
   align-items: center;
   justify-content: center;
   padding: 20px;
+  overflow-y: auto;
 }
 
 .welcome-overlay.hidden { display: none; }
 
-.welcome-card {
+/* The auth card shares all visual DNA with the old welcome-card */
+.auth-card {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 20px;
-  padding: 40px 36px;
+  padding: 40px 36px 36px;
   width: 100%;
-  max-width: 460px;
+  max-width: 480px;
   box-shadow: 0 0 60px var(--cyan-glow), 0 20px 60px var(--shadow);
   text-align: center;
 }
@@ -118,17 +120,91 @@ body {
   filter: drop-shadow(0 0 4px var(--cyan-glow));
 }
 
-.welcome-card h2 {
-  font-size: 1.4rem;
+.auth-card h2 {
+  font-size: 1.5rem;
   font-weight: 800;
   color: var(--text);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .welcome-sub {
   font-size: 0.85rem;
   color: var(--text-dim);
-  margin-bottom: 28px;
+  margin-bottom: 24px;
+}
+
+/* Segmented tab control — active tab is cyan like day tabs */
+.auth-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--hover);
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 24px;
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 9px 12px;
+  border: none;
+  outline: none;
+  border-radius: 9px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  background: transparent;
+  color: var(--text-dim);
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.auth-tab.active {
+  background: var(--cyan);
+  color: #000;
+  box-shadow: 0 0 10px var(--cyan-glow);
+}
+
+.auth-tab:not(.active):hover { color: var(--text); }
+
+/* Sign-in panels — left-aligned text */
+#panelSignIn,
+#panelSignUp { text-align: left; }
+
+/* Error message box */
+.auth-error {
+  background: rgba(229, 57, 53, 0.1);
+  border: 1px solid rgba(229, 57, 53, 0.35);
+  color: var(--red);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 0.8rem;
+  margin-bottom: 12px;
+}
+
+.auth-error.hidden { display: none; }
+
+/* Forgot password link */
+.forgot-link {
+  display: block;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-family: inherit;
+  cursor: pointer;
+  margin-top: 12px;
+  width: 100%;
+  text-align: center;
+  transition: color 0.15s;
+}
+
+.forgot-link:hover { color: var(--cyan); }
+
+.label-hint {
+  font-weight: 400;
+  font-size: 0.72rem;
+  color: var(--text-muted);
 }
 
 .btn-full { width: 100%; justify-content: center; }
@@ -886,86 +962,6 @@ footer {
 .btn-danger    { background: var(--red);   color: #fff; flex: 1; }
 .btn-secondary { background: var(--hover); color: var(--text); border: 1px solid var(--border); }
 
-
-/* =============================================================================
-   AUTH CARD (sign-in / create account)
-   ============================================================================= */
-
-.auth-card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 36px 32px 32px;
-  width: 100%;
-  max-width: 480px;
-  box-shadow: 0 0 60px var(--cyan-glow), 0 20px 60px var(--shadow);
-  text-align: center;
-  max-height: 92vh;
-  overflow-y: auto;
-  scrollbar-width: thin;
-}
-
-.auth-tabs {
-  display: flex;
-  gap: 4px;
-  background: var(--hover);
-  border-radius: 10px;
-  padding: 4px;
-  margin-bottom: 22px;
-}
-
-.auth-tab {
-  flex: 1;
-  padding: 8px;
-  border: none;
-  border-radius: 7px;
-  font-size: 0.84rem;
-  font-weight: 700;
-  cursor: pointer;
-  background: transparent;
-  color: var(--text-dim);
-  transition: background 0.15s, color 0.15s;
-}
-
-.auth-tab.active {
-  background: var(--card);
-  color: var(--text);
-  box-shadow: 0 1px 4px var(--shadow);
-}
-
-.auth-error {
-  background: rgba(229, 57, 53, 0.1);
-  border: 1px solid rgba(229, 57, 53, 0.35);
-  color: var(--red);
-  border-radius: 7px;
-  padding: 8px 12px;
-  font-size: 0.8rem;
-  text-align: left;
-  margin-bottom: 12px;
-}
-
-.auth-error.hidden { display: none; }
-
-.forgot-link {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-size: 0.78rem;
-  cursor: pointer;
-  margin-top: 10px;
-  width: 100%;
-  text-align: center;
-  padding: 4px;
-  transition: color 0.15s;
-}
-
-.forgot-link:hover { color: var(--cyan); }
-
-.label-hint {
-  font-weight: 400;
-  font-size: 0.72rem;
-  color: var(--text-muted);
-}
 
 /* Leaderboard header button */
 .btn-leaderboard {
