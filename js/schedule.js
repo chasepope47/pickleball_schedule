@@ -348,6 +348,7 @@ export function render() {
   buildDayTabs();
   buildSlots(1);
   buildSlots(2);
+  renderTournamentsSidebar();
 }
 
 // ── Reservation modals ───────────────────────────────────────────────────────
