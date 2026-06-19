@@ -329,6 +329,14 @@ header {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
 }
 
 .user-name {
@@ -841,6 +849,59 @@ footer {
 
 
 /* =============================================================================
+   PHOTO UPLOAD (inside profile modal)
+   ============================================================================= */
+
+.photo-upload-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.photo-preview {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: var(--cyan);
+  color: #000;
+  font-size: 1.2rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 2.5px solid var(--cyan-border);
+  box-shadow: 0 0 12px var(--cyan-glow);
+}
+
+.photo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-upload-btn {
+  display: inline-block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.photo-upload-btn:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+
+
+/* =============================================================================
    PROFILE STATS (inside edit modal)
    ============================================================================= */
 
@@ -1035,6 +1096,15 @@ footer {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  overflow: hidden;
+}
+
+.lb-avatar img,
+.lb-avatar.has-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
 }
 
 .lb-info {

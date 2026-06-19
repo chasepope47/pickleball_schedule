@@ -158,6 +158,29 @@ function ratingOptions(selected) {
   ).join('');
 }
 
+function adjustRating(current, won) {
+  const delta = won ? 0.1 : -0.1;
+  const raw   = (parseFloat(current) || 3.0) + delta;
+  return Math.round(Math.min(5.0, Math.max(2.0, raw)) * 10) / 10;
+}
+
+function resizeImage(file, size, quality, callback) {
+  const img = new Image();
+  const url = URL.createObjectURL(file);
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx   = canvas.getContext('2d');
+    const ratio = Math.max(size / img.width, size / img.height);
+    const sw    = size / ratio, sh = size / ratio;
+    const sx    = (img.width - sw) / 2, sy = (img.height - sh) / 2;
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, size, size);
+    URL.revokeObjectURL(url);
+    callback(canvas.toDataURL('image/jpeg', quality));
+  };
+  img.src = url;
+}
+
 async function loadFirestoreProfile(uid) {
   const snap = await getDoc(doc(db, 'players', uid));
   if (!snap.exists()) return null;
@@ -173,7 +196,13 @@ async function saveFirestoreProfile(uid, profile) {
 }
 
 function applyProfileToHeader(profile) {
-  document.getElementById('userAvatar').textContent    = getInitials(profile.firstName, profile.lastName);
+  const avatar = document.getElementById('userAvatar');
+  if (profile.photoUrl) {
+    avatar.innerHTML    = `<img src="${profile.photoUrl}" alt="" />`;
+  } else {
+    avatar.textContent  = getInitials(profile.firstName, profile.lastName);
+    avatar.innerHTML    = avatar.textContent; // clear any old img
+  }
   document.getElementById('userNameLabel').textContent = `${profile.firstName} ${profile.lastName}`;
 }
 
@@ -941,18 +970,26 @@ function openMatchLogModal(court, dayIdx, hour) {
             recordedAt: serverTimestamp(),
           });
 
-          // Update win/loss on player profile
           if (matchType === 'competitive') {
-            const field = matchResult === 'win' ? 'wins' : 'losses';
-            await updateDoc(doc(db, 'players', currentUser.uid), { [field]: increment(1) });
-            currentProfile = { ...currentProfile, [field]: (currentProfile[field] || 0) + 1 };
+            const won       = matchResult === 'win';
+            const field     = won ? 'wins' : 'losses';
+            const newRating = adjustRating(currentProfile.rating, won);
+            await updateDoc(doc(db, 'players', currentUser.uid), {
+              [field]: increment(1),
+              rating: newRating,
+            });
+            currentProfile = {
+              ...currentProfile,
+              [field]: (currentProfile[field] || 0) + 1,
+              rating: newRating,
+            };
             setCachedProfile(currentProfile);
+            closeModal();
+            showToast(`${won ? 'Win' : 'Loss'} recorded! Rating → ${newRating}`);
+          } else {
+            closeModal();
+            showToast('Friendly match recorded!');
           }
-
-          closeModal();
-          showToast(matchType === 'friendly'
-            ? 'Friendly match recorded!'
-            : `${matchResult === 'win' ? 'Win' : 'Loss'} recorded!`);
         } catch (err) {
           console.error('Match log failed:', err);
           showToast('Could not save match — please try again.', 'error');
@@ -1039,12 +1076,15 @@ async function openLeaderboard() {
       const l     = p.losses || 0;
       const total = w + l;
       const pct   = total > 0 ? Math.round((w / total) * 100) + '%' : '—';
-      const isMe  = p.uid === currentUser?.uid;
-      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`;
+      const isMe   = p.uid === currentUser?.uid;
+      const medal  = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`;
+      const avatar = p.photoUrl
+        ? `<img src="${p.photoUrl}" alt="" />`
+        : getInitials(p.firstName, p.lastName);
       return `
         <div class="leaderboard-row ${isMe ? 'me' : ''}">
           <span class="lb-rank">${medal}</span>
-          <div class="lb-avatar">${getInitials(p.firstName, p.lastName)}</div>
+          <div class="lb-avatar ${p.photoUrl ? 'has-photo' : ''}">${avatar}</div>
           <div class="lb-info">
             <span class="lb-name">${p.firstName} ${p.lastName}${isMe ? ' (you)' : ''}</span>
             <span class="lb-rating">★ ${p.rating || '—'}</span>
@@ -1083,11 +1123,21 @@ function openEditProfileModal() {
   const w = p.wins   || 0;
   const l = p.losses || 0;
   const r = p.rating || 3.0;
+  let pendingPhotoUrl = null;
 
   setModal({
     title: 'My Profile',
     sub:   p.email || '',
     body: `
+      <div class="photo-upload-area">
+        <div class="photo-preview" id="photoPreview">
+          ${p.photoUrl ? `<img src="${p.photoUrl}" alt="" />` : getInitials(p.firstName, p.lastName)}
+        </div>
+        <label class="photo-upload-btn" for="photoFileInput">
+          📷 Change Photo
+          <input type="file" id="photoFileInput" accept="image/*" style="display:none" />
+        </label>
+      </div>
       <div class="form-row">
         <div class="form-group">
           <label for="editFirst">First Name</label>
@@ -1098,25 +1148,24 @@ function openEditProfileModal() {
           <input type="text" id="editLast" value="${p.lastName}" maxlength="40" />
         </div>
       </div>
-      <div class="form-group">
-        <label for="editRating">Skill Level</label>
-        <select id="editRating">${ratingOptions(r)}</select>
-      </div>
 
       <div class="profile-stats">
         <div class="stat-box wins">
-          <div class="stat-val" id="statWins">${w}</div>
+          <div class="stat-val">${w}</div>
           <div class="stat-lbl">Wins</div>
         </div>
         <div class="stat-box losses">
-          <div class="stat-val" id="statLosses">${l}</div>
+          <div class="stat-val">${l}</div>
           <div class="stat-lbl">Losses</div>
         </div>
         <div class="stat-box rating">
           <div class="stat-val">${r}</div>
-          <div class="stat-lbl">Rating</div>
+          <div class="stat-lbl">Rating ★</div>
         </div>
       </div>
+      <p style="font-size:.7rem;color:var(--text-muted);text-align:center;margin-top:-6px;margin-bottom:10px">
+        Rating adjusts automatically after each competitive match
+      </p>
 
       ${'Notification' in window ? `
         <div class="notif-opt" style="margin-top:12px">
@@ -1146,19 +1195,28 @@ function openEditProfileModal() {
         ln.classList.toggle('error', !lastName);
         if (!firstName || !lastName) return;
 
-        const rating     = parseFloat(document.getElementById('editRating').value) || r;
         const wantsNotif = document.getElementById('editNotif')?.checked ?? false;
         if (wantsNotif && Notification.permission !== 'granted') {
           try { await Notification.requestPermission(); } catch {}
         }
 
-        const updated = { ...p, firstName, lastName, rating, notif: wantsNotif };
+        const updated = { ...p, firstName, lastName, notif: wantsNotif };
+        if (pendingPhotoUrl !== null) updated.photoUrl = pendingPhotoUrl;
         await saveFirestoreProfile(currentUser.uid, updated);
         applyProfileToHeader(updated);
         closeModal();
         showToast('Profile updated.');
       }),
     ],
+  });
+
+  document.getElementById('photoFileInput').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    resizeImage(file, 128, 0.75, dataUrl => {
+      pendingPhotoUrl = dataUrl;
+      document.getElementById('photoPreview').innerHTML = `<img src="${dataUrl}" alt="" />`;
+    });
   });
 
   document.getElementById('signWaiverBtn')?.addEventListener('click', () => {
