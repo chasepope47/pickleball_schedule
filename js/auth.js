@@ -15,6 +15,7 @@ import {
 } from './schedule.js';
 import { wireAdminBtn } from './admin.js';
 import { refreshDeptSection } from './departments.js';
+import { initTournamentSidebar } from './tournaments.js';
 
 // ── Auth overlay helpers ─────────────────────────────────────────────────────
 
@@ -128,6 +129,7 @@ onAuthStateChanged(auth, async (user) => {
     refreshDeptSection().then(() => {
       if (state.currentProfile) applyProfileToHeader(state.currentProfile);
     });
+    initTournamentSidebar();
   } else {
     applyProfileToHeader(state.currentProfile);
     wireAdminBtn();

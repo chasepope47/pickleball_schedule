@@ -1,13 +1,14 @@
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getAuth, createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import {
-  db, doc, setDoc, updateDoc, getDocs, deleteDoc, collection, serverTimestamp,
+  db, doc, setDoc, updateDoc, getDocs, deleteDoc, deleteField, collection, serverTimestamp,
   signOut, FIREBASE_CONFIG,
 } from './firebase.js';
 import { state } from './state.js';
 import { setModal, closeModal, makeBtn, showToast } from './ui.js';
 import { getInitials, ratingOptions } from './utils.js';
 import { renderAdminDeptContent } from './departments.js';
+import { createTournamentRecord, refreshTournamentSidebar } from './tournaments.js';
 import { BADGES } from './constants.js';
 
 // ── Secondary Firebase app (creates users without signing out the current user) ─
@@ -478,106 +479,168 @@ async function _submitCreate() {
 async function _renderTournamentsForm() {
   const content = document.getElementById('adminContent');
   if (!content) return;
-  content.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px 0">Loading Roster…</p>';
+  content.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px 0">Loading…</p>';
 
   try {
-    const snap = await getDocs(collection(db, 'players'));
-    const players = snap.docs.map(d => ({ uid: d.id, ...d.data() })).filter(p => p.status !== 'blocked');
+    const [playerSnap, tourneySnap] = await Promise.all([
+      getDocs(collection(db, 'players')),
+      getDocs(collection(db, 'tournaments')),
+    ]);
+    const players = playerSnap.docs.map(d => ({ uid: d.id, ...d.data() })).filter(p => p.status !== 'blocked');
 
     const today = new Date();
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
+    const upcoming = tourneySnap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(t => t.date >= todayStr)
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    const fmtH = h => h === 0 ? '12AM' : h === 12 ? '12PM' : h > 12 ? `${h-12}PM` : `${h}AM`;
+    const fmtD = dateStr => {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    };
+
+    const upcomingHtml = upcoming.length === 0
+      ? '<p style="font-size:.82rem;color:var(--text-muted);padding:10px 0">No upcoming tournaments.</p>'
+      : upcoming.map(t => `
+          <div class="dept-admin-row" style="flex-wrap:wrap;gap:6px">
+            <div class="dept-admin-info">
+              <div class="dept-admin-name">${t.name}</div>
+              <div class="dept-admin-meta">${fmtD(t.date)} · Court ${t.court} · ${fmtH(t.startHour)}–${fmtH(t.endHour)} · ${(t.players||[]).length} players</div>
+            </div>
+            <button class="admin-btn delete" data-action="cancel-tourney" data-id="${t.id}" data-name="${t.name}">Cancel</button>
+          </div>`).join('');
+
     content.innerHTML = `
       <div style="padding-top:8px">
-        <p style="font-size:.85rem;color:var(--text-dim);margin-bottom:14px">
-          Schedule a tournament for any future date. This automatically blocks public access to the selected courts.
-        </p>
-        <div class="form-group">
-          <label>Tournament Name</label>
-          <input type="text" id="tName" placeholder="e.g., SafeStreets Summer Classic" />
+        <div style="margin-bottom:18px">
+          <div style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);margin-bottom:8px">Upcoming Tournaments</div>
+          <div class="dept-admin-list">${upcomingHtml}</div>
         </div>
-        <div class="form-row">
+        <div style="border-top:1px solid var(--border);padding-top:16px">
+          <p style="font-size:.85rem;color:var(--text-dim);margin-bottom:14px">
+            Schedule a tournament for any future date. This automatically blocks public access to the selected court.
+          </p>
           <div class="form-group">
-            <label>Court</label>
-            <select id="tCourt"><option value="1">Court 1</option><option value="2">Court 2</option></select>
+            <label>Tournament Name</label>
+            <input type="text" id="tName" placeholder="e.g., SafeStreets Summer Classic" />
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Court</label>
+              <select id="tCourt"><option value="1">Court 1</option><option value="2">Court 2</option></select>
+            </div>
+            <div class="form-group">
+              <label>Date</label>
+              <input type="date" id="tDate" min="${todayStr}" />
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Start Hour</label>
+              <select id="tStart">${[6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21].map(h => `<option value="${h}">${fmtH(h)}</option>`).join('')}</select>
+            </div>
+            <div class="form-group">
+              <label>End Hour</label>
+              <select id="tEnd">${[7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22].map(h => `<option value="${h}">${fmtH(h)}</option>`).join('')}</select>
+            </div>
           </div>
           <div class="form-group">
-            <label>Date</label>
-            <input type="date" id="tDate" min="${todayStr}" />
+            <label>Tournament Roster (Select Players)</label>
+            <div style="background:var(--card);padding:10px;border:1px solid var(--border);border-radius:8px;max-height:150px;overflow-y:auto">
+              ${players.map(p => `
+                <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer">
+                  <input type="checkbox" class="t-player-cb" value="${p.uid}" data-name="${p.firstName} ${p.lastName}" />
+                  <span>${p.firstName} ${p.lastName}</span>
+                </label>`).join('')}
+            </div>
           </div>
+          <button class="btn btn-primary btn-full" id="doTournamentBtn" style="margin-top:12px">Lock Schedule</button>
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Start Hour</label>
-            <select id="tStart">${[6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21].map(h => `<option value="${h}">${h > 12 ? h-12 : h} ${h >= 12 ? 'PM' : 'AM'}</option>`).join('')}</select>
-          </div>
-          <div class="form-group">
-            <label>End Hour</label>
-            <select id="tEnd">${[7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22].map(h => `<option value="${h}">${h > 12 ? h-12 : h} ${h >= 12 ? 'PM' : 'AM'}</option>`).join('')}</select>
-          </div>
-        </div>
-        <div class="form-group">
-          <label>Tournament Roster (Select Players)</label>
-          <div style="background:var(--card); padding:10px; border:1px solid var(--border); border-radius:8px; max-height: 150px; overflow-y: auto;">
-            ${players.map(p => `
-              <label style="display:flex; align-items:center; gap:8px; margin-bottom:6px; cursor:pointer;">
-                <input type="checkbox" class="t-player-cb" value="${p.uid}" data-name="${p.firstName} ${p.lastName}" />
-                <span>${p.firstName} ${p.lastName}</span>
-              </label>`).join('')}
-          </div>
-        </div>
-        <button class="btn btn-primary btn-full" id="doTournamentBtn" style="margin-top:12px;">Lock Schedule</button>
       </div>
     `;
 
-    document.getElementById('doTournamentBtn').addEventListener('click', async () => {
-      const name = document.getElementById('tName').value.trim();
-      const court = parseInt(document.getElementById('tCourt').value);
-      const dateStr = document.getElementById('tDate').value;
-      const startHour = parseInt(document.getElementById('tStart').value);
-      const endHour = parseInt(document.getElementById('tEnd').value);
+    // Cancel existing tournament
+    content.querySelectorAll('[data-action="cancel-tourney"]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const t = upcoming.find(x => x.id === btn.dataset.id);
+        if (!t) return;
+        if (!confirm(`Cancel "${t.name}"? This will unblock the reserved slots.`)) return;
+        try {
+          const updates = {};
+          for (let h = t.startHour; h < t.endHour; h++) {
+            updates[`${t.court}_${t.dayIdx}_${h}`] = deleteField();
+          }
+          await updateDoc(doc(db, 'reservations', t.weekKey), updates);
+          await deleteDoc(doc(db, 'tournaments', t.id));
+          showToast(`"${t.name}" cancelled.`);
+          refreshTournamentSidebar();
+          _renderTournamentsForm();
+        } catch (err) {
+          console.error(err);
+          showToast('Could not cancel tournament.', 'error');
+        }
+      });
+    });
 
-      if (!name) return showToast('Please provide a tournament name.', 'error');
+    document.getElementById('doTournamentBtn').addEventListener('click', async () => {
+      const name      = document.getElementById('tName').value.trim();
+      const court     = parseInt(document.getElementById('tCourt').value);
+      const dateStr   = document.getElementById('tDate').value;
+      const startHour = parseInt(document.getElementById('tStart').value);
+      const endHour   = parseInt(document.getElementById('tEnd').value);
+
+      if (!name)    return showToast('Please provide a tournament name.', 'error');
       if (!dateStr) return showToast('Please select a date.', 'error');
       if (startHour >= endHour) return showToast('End time must be after start time.', 'error');
 
       const selected = Array.from(document.querySelectorAll('.t-player-cb:checked')).map(cb => ({
         uid: cb.value,
-        name: cb.dataset.name
+        name: cb.dataset.name,
       }));
-
       if (selected.length === 0) return showToast('Please select at least one player.', 'error');
 
       const btn = document.getElementById('doTournamentBtn');
       btn.disabled = true;
-      btn.textContent = 'Locking Schedule...';
+      btn.textContent = 'Locking Schedule…';
 
       try {
         const [y, m, d] = dateStr.split('-').map(Number);
-        const selectedDate = new Date(y, m - 1, d);
-        
-        let dayOfWeek = selectedDate.getDay();
-        let targetDayIdx = dayOfWeek === 0 ? 6 : dayOfWeek - 1; 
-        
-        const monday = new Date(selectedDate);
+        const selectedDate  = new Date(y, m - 1, d);
+        const dayOfWeek     = selectedDate.getDay();
+        const targetDayIdx  = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+        const monday        = new Date(selectedDate);
         monday.setDate(selectedDate.getDate() - targetDayIdx);
         const targetWeekKey = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+
+        const rosterPlayers = selected.map(s => ({
+          uid: s.uid,
+          firstName: s.name.split(' ')[0],
+          lastName:  s.name.split(' ')[1] || '',
+        }));
 
         const updates = {};
         for (let h = startHour; h < endHour; h++) {
           updates[`${court}_${targetDayIdx}_${h}`] = {
             isTournament: true,
             tournamentName: name,
-            players: selected.map(s => ({ uid: s.uid, firstName: s.name.split(' ')[0], lastName: s.name.split(' ')[1] || '' })),
-            maxPlayers: selected.length,
-            createdBy: state.currentUser.uid
+            players: rosterPlayers,
+            maxPlayers: rosterPlayers.length,
+            createdBy: state.currentUser.uid,
           };
         }
-
         await setDoc(doc(db, 'reservations', targetWeekKey), updates, { merge: true });
+        await createTournamentRecord({
+          name, court, date: dateStr, dayIdx: targetDayIdx,
+          weekKey: targetWeekKey, startHour, endHour,
+          players: rosterPlayers,
+        });
 
-        showToast(`Schedule locked for ${name} on ${dateStr}.`);
-        closeModal();
+        showToast(`Schedule locked for "${name}" on ${dateStr}.`);
+        refreshTournamentSidebar();
+        _renderTournamentsForm();
       } catch (err) {
         console.error('Failed to lock schedule:', err);
         showToast('Failed to lock schedule. Check connection.', 'error');
@@ -588,6 +651,6 @@ async function _renderTournamentsForm() {
 
   } catch (err) {
     console.error(err);
-    content.innerHTML = '<p style="text-align:center;color:var(--red);padding:20px 0">Could not load roster.</p>';
+    content.innerHTML = '<p style="text-align:center;color:var(--red);padding:20px 0">Could not load tournament data.</p>';
   }
 }

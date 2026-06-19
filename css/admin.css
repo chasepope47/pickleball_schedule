@@ -30,6 +30,7 @@
 /* Admin tab switcher */
 .admin-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
   background: var(--hover);
   border-radius: 10px;

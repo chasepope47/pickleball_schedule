@@ -75,5 +75,13 @@ service cloud.firestore {
       allow delete: if canManage();
     }
 
+    // Tournament records (sidebar display + admin management)
+    match /tournaments/{tournamentId} {
+      allow read:   if isSignedIn();
+      allow create: if canManage();
+      allow update: if canManage();
+      allow delete: if canManage();
+    }
+
   }
 }

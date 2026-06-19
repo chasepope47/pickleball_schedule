@@ -471,56 +471,75 @@ export function openLeaveModal(court, dayIdx, hour, players) {
 export function openManageSlotModal(court, dayIdx, hour) {
   const dateStr = dayDate(dayIdx).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const myRole  = state.currentProfile?.role || 'user';
+  const isPast  = slotDateTime(dayIdx, hour + 1) <= new Date();
+  let _allPlayers = null; // fetched once, reused on re-renders
 
   async function buildModal() {
     const res     = getRes(court, dayIdx, hour);
     const players = normalizeRes(res);
 
-    const playersWithRoles = await Promise.all(players.map(async p => {
-      if (p.uid === state.currentUser?.uid) return { ...p, role: myRole };
+    // Fetch all players on first render for role lookups + Add Player dropdown
+    if (_allPlayers === null) {
       try {
-        const snap = await getDoc(doc(db, 'players', p.uid));
-        return { ...p, role: snap.exists() ? snap.data().role : 'user' };
-      } catch (e) {
-        return { ...p, role: 'user' };
-      }
-    }));
+        const snap = await getDocs(collection(db, 'players'));
+        _allPlayers = snap.docs.map(d => ({ uid: d.id, ...d.data() }));
+      } catch { _allPlayers = []; }
+    }
 
-    const canRemove = (targetRole) => {
-      if (myRole === 'admin') return true;
-      if (myRole === 'manager' && targetRole !== 'admin') return true;
-      return false;
-    };
+    const playersWithRoles = players.map(p => {
+      if (p.uid === state.currentUser?.uid) return { ...p, role: myRole };
+      const found = _allPlayers.find(ap => ap.uid === p.uid);
+      return { ...p, role: found?.role || 'user' };
+    });
+
+    const canRemove = (targetRole) =>
+      myRole === 'admin' || (myRole === 'manager' && targetRole !== 'admin');
 
     const hasAdmin     = playersWithRoles.some(p => p.role === 'admin');
     const canClearSlot = myRole === 'admin' || (myRole === 'manager' && !hasAdmin);
+    const isFull       = players.length >= MAX_PLAYERS;
+
+    const available = isPast ? [] : (_allPlayers || [])
+      .filter(ap => ap.status !== 'blocked' && !players.some(p => p.uid === ap.uid))
+      .sort((a, b) => `${a.firstName}${a.lastName}`.localeCompare(`${b.firstName}${b.lastName}`));
 
     setModal({
       title: `Manage Slot`,
       sub:   `Court ${court} · ${DAY_NAMES[dayIdx]}, ${dateStr} · ${slotLabel(hour)}`,
-      body: playersWithRoles.length === 0
-        ? `<p style="text-align:center;color:var(--text-muted);padding:16px">No players in this slot.</p>`
-        : `
-          <div class="modal-player-list" id="mgSlotList">
-            ${playersWithRoles.map(p => {
-              const isMe = p.uid === state.currentUser?.uid;
-              const removeBtn = canRemove(p.role)
-                ? `<button class="admin-btn delete" style="font-size:.72rem;padding:3px 8px;flex-shrink:0" data-uid="${p.uid}">Remove</button>`
-                : `<span style="font-size:0.75rem; color:var(--text-muted);">Protected</span>`;
-
-              return `
-                <div class="modal-player-row ${isMe ? 'is-me' : ''}">
-                  <div class="p-avatar">${getInitials(p.firstName, p.lastName)}</div>
-                  <span class="p-name">${p.firstName} ${p.lastName}${isMe ? ' (you)' : ''}</span>
-                  <span class="p-rating">${p.rating ? `★ ${p.rating}` : '—'}</span>
-                  ${removeBtn}
-                </div>`;
-            }).join('')}
-          </div>
-          <p style="font-size:.78rem;color:var(--text-muted);margin-top:10px">
-            Removing the last player cancels the slot entirely.
-          </p>
-        `,
+      body: `
+        ${playersWithRoles.length === 0
+          ? `<p style="text-align:center;color:var(--text-muted);padding:16px">No players in this slot.</p>`
+          : `
+            <div class="modal-player-list" id="mgSlotList">
+              ${playersWithRoles.map(p => {
+                const isMe = p.uid === state.currentUser?.uid;
+                const removeBtn = canRemove(p.role)
+                  ? `<button class="admin-btn delete" style="font-size:.72rem;padding:3px 8px;flex-shrink:0" data-uid="${p.uid}">Remove</button>`
+                  : `<span style="font-size:.75rem;color:var(--text-muted)">Protected</span>`;
+                return `
+                  <div class="modal-player-row ${isMe ? 'is-me' : ''}">
+                    <div class="p-avatar">${getInitials(p.firstName, p.lastName)}</div>
+                    <span class="p-name">${p.firstName} ${p.lastName}${isMe ? ' (you)' : ''}</span>
+                    <span class="p-rating">${p.rating ? `★ ${p.rating}` : '—'}</span>
+                    ${removeBtn}
+                  </div>`;
+              }).join('')}
+            </div>
+            <p style="font-size:.78rem;color:var(--text-muted);margin-top:10px">
+              Removing the last player cancels the slot entirely.
+            </p>`}
+        ${!isPast && !isFull && available.length > 0 ? `
+          <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+            <label style="font-size:.8rem;font-weight:600;color:var(--text-dim);display:block;margin-bottom:6px">Add player to slot</label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <select id="addToSlotSelect" style="flex:1">
+                <option value="">— select player —</option>
+                ${available.map(ap => `<option value="${ap.uid}">${ap.firstName} ${ap.lastName}${ap.rating ? ' ★' + ap.rating : ''}</option>`).join('')}
+              </select>
+              <button class="btn btn-primary" id="addToSlotBtn" style="padding:8px 14px;white-space:nowrap;flex-shrink:0">Add</button>
+            </div>
+          </div>` : ''}
+      `,
       actions: [
         (playersWithRoles.length > 0 && canClearSlot)
           ? makeBtn('Clear Entire Slot', 'btn-danger', async () => {
@@ -545,9 +564,31 @@ export function openManageSlotModal(court, dayIdx, hour) {
         } else {
           await setRes(court, dayIdx, hour, { ...current, players: remaining });
           showToast('Player removed.');
-          buildModal(); // refresh modal with updated list
+          buildModal();
         }
       });
+    });
+
+    document.getElementById('addToSlotBtn')?.addEventListener('click', async () => {
+      const uid = document.getElementById('addToSlotSelect').value;
+      if (!uid) return;
+      const ap = (_allPlayers || []).find(p => p.uid === uid);
+      if (!ap) return;
+
+      const current    = getRes(court, dayIdx, hour);
+      const curPlayers = normalizeRes(current);
+      if (curPlayers.length >= MAX_PLAYERS) return showToast('Slot is full.', 'error');
+      if (curPlayers.some(p => p.uid === uid)) return showToast('Player already in slot.', 'error');
+
+      const newPlayer = { firstName: ap.firstName, lastName: ap.lastName, rating: ap.rating || null, uid, notif: false };
+      const newPlayers = [...curPlayers, newPlayer];
+      const newRes = current
+        ? { ...current, players: newPlayers }
+        : { players: newPlayers, maxPlayers: MAX_PLAYERS, createdBy: state.currentUser.uid };
+
+      await setRes(court, dayIdx, hour, newRes);
+      showToast(`${ap.firstName} ${ap.lastName} added to slot.`);
+      buildModal();
     });
   }
 

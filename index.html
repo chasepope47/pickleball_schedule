@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SafeStreets Pickleball Schedule</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=4" />
 </head>
 <body>
 
@@ -58,12 +58,11 @@
     </div>
   </header>
 
-  <div class="schedule-layout">
-    
-    <aside class="schedule-sidebar" id="tournamentsSidebar">
-      </aside>
+  <div class="schedule-layout" style="display:flex;gap:24px;align-items:flex-start;max-width:1400px;margin:0 auto;padding:0 20px">
 
-    <main class="schedule-main">
+    <aside class="schedule-sidebar" id="tournamentsSidebar" style="width:220px;flex-shrink:0;padding-top:28px"></aside>
+
+    <main class="schedule-main" style="flex:1;min-width:0;max-width:900px;margin:0;padding:28px 0">
       <div class="week-bar">
         <h2 id="weekLabel"></h2>
         <span class="reset-badge" id="resetLabel"></span>
