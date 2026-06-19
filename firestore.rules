@@ -7,27 +7,37 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Checks the caller's own player doc for the admin role.
-    // The extra exists() guard prevents errors when the doc doesn't exist yet.
-    function isAdmin() {
+    function callerRole() {
       return isSignedIn()
         && exists(/databases/$(database)/documents/players/$(request.auth.uid))
-        && get(/databases/$(database)/documents/players/$(request.auth.uid)).data.role == 'admin';
+        ? get(/databases/$(database)/documents/players/$(request.auth.uid)).data.role
+        : null;
     }
+
+    function isAdmin()   { return callerRole() == 'admin';   }
+    function isManager() { return callerRole() == 'manager'; }
+
+    // Admins and managers can manage users
+    function canManage() { return isAdmin() || isManager(); }
 
     // Player profiles
     match /players/{userId} {
-      // Any signed-in user can read their own profile; admins can read all.
-      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      // Own profile, or any manager/admin, can read
+      allow read: if isSignedIn() && (request.auth.uid == userId || canManage());
 
-      // Only admins may create profiles (account creation goes through admin panel).
-      allow create: if isAdmin();
+      // Only managers/admins can create profiles (no self-registration)
+      allow create: if canManage();
 
-      // Users may update their own profile; admins may update any profile.
-      allow update: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      // Users can update their own profile; managers can update non-admin profiles;
+      // admins can update anyone
+      allow update: if isSignedIn() && (
+        request.auth.uid == userId ||
+        isAdmin() ||
+        (isManager() && resource.data.role != 'admin')
+      );
 
-      // Only admins may delete profiles.
-      allow delete: if isAdmin();
+      // Managers can delete non-admin profiles; admins can delete anyone
+      allow delete: if isAdmin() || (isManager() && resource.data.role != 'admin');
     }
 
     // Weekly reservation documents (one per week, keyed YYYY-MM-DD)
@@ -40,8 +50,8 @@ service cloud.firestore {
     match /matches/{matchId} {
       allow read:   if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
-      allow delete: if isAdmin();
+      allow update: if isSignedIn() && (resource.data.uid == request.auth.uid || canManage());
+      allow delete: if canManage();
     }
 
   }

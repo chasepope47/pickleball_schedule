@@ -8,7 +8,7 @@ import { state } from './state.js';
 import { setModal, closeModal, makeBtn, showToast } from './ui.js';
 import { getInitials, ratingOptions } from './utils.js';
 
-// ── Secondary Firebase app (creates users without signing out the admin) ──────
+// ── Secondary Firebase app (creates users without signing out the current user) ─
 
 let _secondaryAuth = null;
 function getSecondaryAuth() {
@@ -19,24 +19,34 @@ function getSecondaryAuth() {
   return _secondaryAuth;
 }
 
-// ── Role helpers ─────────────────────────────────────────────────────────────
+// ── Role helpers ──────────────────────────────────────────────────────────────
+// Hierarchy: admin > manager > user
+// First admin must be bootstrapped manually in Firestore:
+//   players/{uid} → role: "admin", status: "active"
 
-export function isAdmin() {
-  return state.currentProfile?.role === 'admin';
+export function isAdmin()   { return state.currentProfile?.role === 'admin';   }
+export function isManager() { return state.currentProfile?.role === 'manager'; }
+
+// True for both admins and managers — gates the ⚙️ button
+function canManageUsers() { return isAdmin() || isManager(); }
+
+// Whether the current viewer can act on a target player
+// Managers cannot touch admins or grant the admin role
+function canActOn(targetRole) {
+  if (isAdmin()) return true;             // admins can act on anyone
+  return targetRole !== 'admin';          // managers cannot act on admins
 }
 
-// ── Admin button in header ────────────────────────────────────────────────────
-// First admin must be bootstrapped manually in Firestore:
-//   players/{uid}  →  role: "admin"
+// ── Admin button ──────────────────────────────────────────────────────────────
 
 export function wireAdminBtn() {
   const btn = document.getElementById('adminBtn');
   if (!btn) return;
-  btn.style.display = isAdmin() ? 'flex' : 'none';
+  btn.style.display = canManageUsers() ? 'flex' : 'none';
   btn.onclick = openAdminPanel;
 }
 
-// ── Admin panel shell ─────────────────────────────────────────────────────────
+// ── Panel shell ───────────────────────────────────────────────────────────────
 
 let _activeView = 'users';
 
@@ -70,8 +80,7 @@ function _renderShell() {
     else _renderCreateForm();
   });
 
-  const closeBtn = makeBtn('Close', 'btn-secondary', closeModal);
-  document.getElementById('modalActions').appendChild(closeBtn);
+  document.getElementById('modalActions').appendChild(makeBtn('Close', 'btn-secondary', closeModal));
 }
 
 // ── Users view ────────────────────────────────────────────────────────────────
@@ -95,18 +104,22 @@ async function _loadUsers() {
       return;
     }
 
-    content.innerHTML = `<div class="admin-user-list">${players.map(_userRowHtml).join('')}</div>`;
+    content.innerHTML =
+      `<div class="admin-user-list">${players.map(_userRowHtml).join('')}</div>`;
 
+    // Wire all action buttons in one pass
     content.querySelectorAll('[data-action]').forEach(btn => {
       btn.addEventListener('click', () => {
         const p = players.find(u => u.uid === btn.dataset.uid);
         if (!p) return;
-        const a = btn.dataset.action;
-        if (a === 'block')   _confirmBlock(p, true);
-        if (a === 'unblock') _confirmBlock(p, false);
-        if (a === 'delete')  _confirmDelete(p);
-        if (a === 'promote') _confirmRole(p, true);
-        if (a === 'demote')  _confirmRole(p, false);
+        switch (btn.dataset.action) {
+          case 'block':     return _confirmBlock(p, true);
+          case 'unblock':   return _confirmBlock(p, false);
+          case 'delete':    return _confirmDelete(p);
+          case 'makeadmin': return _confirmRole(p, 'admin');
+          case 'makemgr':   return _confirmRole(p, 'manager');
+          case 'setuser':   return _confirmRole(p, 'user');
+        }
       });
     });
   } catch (err) {
@@ -116,28 +129,54 @@ async function _loadUsers() {
   }
 }
 
+function _mkBtn(label, cls, action, uid) {
+  return `<button class="admin-btn ${cls}" data-action="${action}" data-uid="${uid}">${label}</button>`;
+}
+
 function _userRowHtml(p) {
-  const isMe      = p.uid === state.currentUser?.uid;
-  const isBlocked = p.status === 'blocked';
-  const isAdminP  = p.role === 'admin';
-  const avatar    = p.photoUrl
+  const isMe       = p.uid === state.currentUser?.uid;
+  const isBlocked  = p.status === 'blocked';
+  const targetRole = p.role || 'user';
+  const avatar     = p.photoUrl
     ? `<img src="${p.photoUrl}" alt="" />`
     : getInitials(p.firstName, p.lastName);
 
   const statusBadge = isBlocked
     ? `<span class="admin-badge blocked">Blocked</span>`
     : `<span class="admin-badge active">Active</span>`;
-  const roleBadge = isAdminP ? `<span class="admin-badge admin-role">Admin</span>` : '';
 
-  const actions = isMe ? '<span class="admin-you">(you)</span>' : `
-    ${isBlocked
-      ? `<button class="admin-btn unblock" data-action="unblock" data-uid="${p.uid}">Unblock</button>`
-      : `<button class="admin-btn block"   data-action="block"   data-uid="${p.uid}">Block</button>`}
-    ${isAdminP
-      ? `<button class="admin-btn demote"  data-action="demote"  data-uid="${p.uid}">Revoke Admin</button>`
-      : `<button class="admin-btn promote" data-action="promote" data-uid="${p.uid}">Make Admin</button>`}
-    <button class="admin-btn delete" data-action="delete" data-uid="${p.uid}">Remove</button>
-  `;
+  const roleBadge = targetRole === 'admin'
+    ? `<span class="admin-badge role-admin">Admin</span>`
+    : targetRole === 'manager'
+    ? `<span class="admin-badge role-manager">Manager</span>`
+    : '';
+
+  let actions;
+  if (isMe) {
+    actions = '<span class="admin-you">(you)</span>';
+  } else if (!canActOn(targetRole)) {
+    // Manager looking at an admin — read-only
+    actions = '<span class="admin-protected">🔒</span>';
+  } else {
+    const blockBtn = isBlocked
+      ? _mkBtn('Unblock',  'unblock', 'unblock', p.uid)
+      : _mkBtn('Block',    'block',   'block',   p.uid);
+
+    let roleBtn = '';
+    if (targetRole === 'admin') {
+      // Only reachable by other admins (canActOn guard above)
+      roleBtn = _mkBtn('Revoke Admin', 'demote', 'setuser', p.uid);
+    } else if (targetRole === 'manager') {
+      roleBtn = _mkBtn('Revoke Manager', 'demote', 'setuser', p.uid);
+      if (isAdmin()) roleBtn += _mkBtn('Make Admin', 'promote', 'makeadmin', p.uid);
+    } else {
+      roleBtn = _mkBtn('Make Manager', 'promote', 'makemgr', p.uid);
+      if (isAdmin()) roleBtn += _mkBtn('Make Admin', 'promote', 'makeadmin', p.uid);
+    }
+
+    const deleteBtn = _mkBtn('Remove', 'delete', 'delete', p.uid);
+    actions = blockBtn + roleBtn + deleteBtn;
+  }
 
   return `
     <div class="admin-user-row ${isBlocked ? 'is-blocked' : ''}">
@@ -154,6 +193,11 @@ function _userRowHtml(p) {
 
 // ── Confirmation modals ───────────────────────────────────────────────────────
 
+function _reopenWide() {
+  openAdminPanel();
+  // openAdminPanel re-renders the shell which adds modal-wide
+}
+
 function _confirmBlock(player, blocking) {
   setModal({
     title: blocking ? 'Block User' : 'Unblock User',
@@ -164,7 +208,7 @@ function _confirmBlock(player, blocking) {
         : `<strong>${player.firstName}</strong> will regain full access to the app.`}
     </p>`,
     actions: [
-      makeBtn('Cancel', 'btn-secondary', () => openAdminPanel()),
+      makeBtn('Cancel', 'btn-secondary', _reopenWide),
       makeBtn(
         blocking ? 'Block User' : 'Unblock User',
         blocking ? 'btn-danger'  : 'btn-primary',
@@ -174,7 +218,7 @@ function _confirmBlock(player, blocking) {
               status: blocking ? 'blocked' : 'active',
             });
             showToast(`${player.firstName} ${blocking ? 'blocked' : 'unblocked'}.`);
-            openAdminPanel();
+            _reopenWide();
           } catch (err) {
             console.error(err);
             showToast('Could not update user.', 'error');
@@ -193,17 +237,17 @@ function _confirmDelete(player) {
     body: `
       <p style="font-size:.88rem;color:var(--text-dim);margin-bottom:10px">
         This removes <strong>${player.firstName} ${player.lastName}</strong>'s profile and data.
-        They will not be able to sign in until an admin creates a new account for them.
+        They will not be able to sign in until an account is created for them again.
       </p>
       <p style="font-size:.8rem;color:var(--red)">This cannot be undone.</p>
     `,
     actions: [
-      makeBtn('Cancel', 'btn-secondary', () => openAdminPanel()),
+      makeBtn('Cancel', 'btn-secondary', _reopenWide),
       makeBtn('Remove User', 'btn-danger', async () => {
         try {
           await deleteDoc(doc(db, 'players', player.uid));
           showToast(`${player.firstName} ${player.lastName} removed.`);
-          openAdminPanel();
+          _reopenWide();
         } catch (err) {
           console.error(err);
           showToast('Could not remove user.', 'error');
@@ -214,27 +258,33 @@ function _confirmDelete(player) {
   document.querySelector('.modal').classList.add('modal-wide');
 }
 
-function _confirmRole(player, promoting) {
+const ROLE_LABELS = { admin: 'Admin', manager: 'Manager', user: 'User' };
+
+function _confirmRole(player, newRole) {
+  const current = player.role || 'user';
+  const isUpgrade = (newRole === 'admin') ||
+    (newRole === 'manager' && current === 'user');
+
   setModal({
-    title: promoting ? 'Grant Admin Access' : 'Revoke Admin Access',
+    title: `Change Role → ${ROLE_LABELS[newRole]}`,
     sub:   `${player.firstName} ${player.lastName}`,
     body: `<p style="font-size:.88rem;color:var(--text-dim)">
-      ${promoting
-        ? `<strong>${player.firstName}</strong> will be able to manage users and create accounts.`
-        : `<strong>${player.firstName}</strong> will be demoted to a regular user.`}
+      ${newRole === 'admin'
+        ? `<strong>${player.firstName}</strong> will be able to manage all users including other managers and admins.`
+        : newRole === 'manager'
+        ? `<strong>${player.firstName}</strong> will be able to manage users and create accounts, but cannot act on admins.`
+        : `<strong>${player.firstName}</strong> will be a regular user with no management access.`}
     </p>`,
     actions: [
-      makeBtn('Cancel', 'btn-secondary', () => openAdminPanel()),
+      makeBtn('Cancel', 'btn-secondary', _reopenWide),
       makeBtn(
-        promoting ? 'Grant Admin' : 'Revoke Admin',
-        promoting ? 'btn-primary'  : 'btn-danger',
+        `Set as ${ROLE_LABELS[newRole]}`,
+        isUpgrade ? 'btn-primary' : 'btn-danger',
         async () => {
           try {
-            await updateDoc(doc(db, 'players', player.uid), {
-              role: promoting ? 'admin' : 'user',
-            });
-            showToast(`${player.firstName} is now ${promoting ? 'an admin' : 'a regular user'}.`);
-            openAdminPanel();
+            await updateDoc(doc(db, 'players', player.uid), { role: newRole });
+            showToast(`${player.firstName} is now ${newRole === 'admin' ? 'an Admin' : newRole === 'manager' ? 'a Manager' : 'a User'}.`);
+            _reopenWide();
           } catch (err) {
             console.error(err);
             showToast('Could not update role.', 'error');
@@ -247,6 +297,15 @@ function _confirmRole(player, promoting) {
 }
 
 // ── Create Account view ───────────────────────────────────────────────────────
+
+function _roleOptions() {
+  const opts = [
+    `<option value="user">User</option>`,
+    `<option value="manager">Manager</option>`,
+  ];
+  if (isAdmin()) opts.push(`<option value="admin">Admin</option>`);
+  return opts.join('');
+}
 
 function _renderCreateForm() {
   const content = document.getElementById('adminContent');
@@ -278,10 +337,7 @@ function _renderCreateForm() {
         </div>
         <div class="form-group">
           <label for="newRole">Role</label>
-          <select id="newRole">
-            <option value="user" selected>User</option>
-            <option value="admin">Admin</option>
-          </select>
+          <select id="newRole">${_roleOptions()}</select>
         </div>
       </div>
       <div class="auth-error hidden" id="createUserError"></div>
@@ -289,10 +345,10 @@ function _renderCreateForm() {
     </div>
   `;
 
-  document.getElementById('doCreateBtn').addEventListener('click', _submitCreateUser);
+  document.getElementById('doCreateBtn').addEventListener('click', _submitCreate);
 }
 
-async function _submitCreateUser() {
+async function _submitCreate() {
   const fn      = document.getElementById('newFirst');
   const ln      = document.getElementById('newLast');
   const emailEl = document.getElementById('newEmail');
@@ -311,15 +367,21 @@ async function _submitCreateUser() {
   passEl.classList.toggle('error', password.length < 6);
   if (!firstName || !lastName || !email || password.length < 6) return;
 
+  // Managers cannot assign the admin role — guard against DOM tampering
+  const role = document.getElementById('newRole').value;
+  if (role === 'admin' && !isAdmin()) {
+    showToast('Only admins can create admin accounts.', 'error');
+    return;
+  }
+
   errorEl.classList.add('hidden');
   btn.textContent = 'Creating…';
   btn.disabled    = true;
 
   try {
-    const secAuth     = getSecondaryAuth();
-    const { user }    = await createUserWithEmailAndPassword(secAuth, email, password);
-    const rating      = parseFloat(document.getElementById('newRating').value) || 3.0;
-    const role        = document.getElementById('newRole').value;
+    const secAuth  = getSecondaryAuth();
+    const { user } = await createUserWithEmailAndPassword(secAuth, email, password);
+    const rating   = parseFloat(document.getElementById('newRating').value) || 3.0;
 
     await setDoc(doc(db, 'players', user.uid), {
       firstName, lastName, email, rating, role,
@@ -329,8 +391,7 @@ async function _submitCreateUser() {
       createdAt: serverTimestamp(),
     });
 
-    // Sign out of the secondary session so it doesn't linger
-    await signOut(secAuth);
+    await signOut(secAuth); // close the secondary session
 
     const tempPass = password;
     const content  = document.getElementById('adminContent');
@@ -340,6 +401,7 @@ async function _submitCreateUser() {
           <p class="admin-created-title">✓ Account Created</p>
           <div class="admin-created-row"><strong>Name</strong><span>${firstName} ${lastName}</span></div>
           <div class="admin-created-row"><strong>Email</strong><span>${email}</span></div>
+          <div class="admin-created-row"><strong>Role</strong><span>${ROLE_LABELS[role]}</span></div>
           <div class="admin-created-row"><strong>Temp Password</strong><span class="mono">${tempPass}</span></div>
           <p class="admin-created-hint">Share these credentials with the user. They should change their password after first sign-in.</p>
         </div>

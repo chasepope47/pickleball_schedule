@@ -158,10 +158,16 @@
   color: var(--red);
 }
 
-.admin-badge.admin-role {
+.admin-badge.role-admin {
   background: var(--orange-bg);
   border: 1px solid var(--orange-border);
   color: var(--orange);
+}
+
+.admin-badge.role-manager {
+  background: var(--cyan-bg);
+  border: 1px solid var(--cyan-border);
+  color: var(--cyan);
 }
 
 /* Action buttons inside user rows */
@@ -192,7 +198,8 @@
 .admin-btn.promote:hover { border-color: var(--orange); color: var(--orange); background: var(--orange-bg); }
 .admin-btn.demote:hover  { border-color: var(--red);    color: var(--red);    background: rgba(229,57,53,0.08); }
 
-.admin-you {
+.admin-you,
+.admin-protected {
   font-size: 0.72rem;
   color: var(--text-muted);
   font-style: italic;
