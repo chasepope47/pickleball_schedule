@@ -1355,15 +1355,12 @@ function showBadgeToast(badge) {
   const t = document.createElement('div');
   t.id = 'badgeToast';
   t.innerHTML = `
-    <div class="badge-toast-header">🏅 Badge Unlocked!</div>
-    <div class="badge-toast-body">
-      <span class="badge-toast-icon">${badge.icon}</span>
-      <div class="badge-toast-text">
-        <div class="badge-toast-name">${badge.name}</div>
-        <div class="badge-toast-desc">${badge.desc}</div>
-      </div>
+    <span class="badge-toast-icon">${badge.icon}</span>
+    <div class="badge-toast-text">
+      <span class="badge-toast-label">Badge Unlocked!</span>
+      <span class="badge-toast-name">${badge.name}</span>
     </div>
-    <div class="badge-toast-hint">Tap here to view all your badges →</div>
+    <span class="badge-toast-hint">Tap to view your badges →</span>
   `;
   t.addEventListener('click', () => { t.remove(); openEditProfileModal(); });
   document.body.appendChild(t);

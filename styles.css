@@ -1560,68 +1560,65 @@ footer {
   color: var(--text-muted);
 }
 
-/* Badge unlocked notification */
+/* Badge unlocked banner */
 #badgeToast {
   position: fixed;
-  top: 76px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--card);
-  border: 2px solid var(--cyan);
-  box-shadow: 0 0 36px var(--cyan-glow), 0 16px 48px var(--shadow);
-  border-radius: 18px;
-  padding: 18px 22px;
-  z-index: 400;
-  animation: badgePop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+  top: 64px;
+  left: 0;
+  right: 0;
+  background: color-mix(in srgb, var(--cyan) 12%, var(--card));
+  border-bottom: 2px solid var(--cyan);
+  box-shadow: 0 4px 18px var(--shadow);
+  padding: 11px 20px;
+  z-index: 200;
+  animation: bannerSlide 0.3s ease-out;
   cursor: pointer;
-  min-width: 270px;
-  max-width: 340px;
-  text-align: center;
-}
-
-@keyframes badgePop {
-  from { transform: translateX(-50%) scale(0.7) translateY(-20px); opacity: 0; }
-  to   { transform: translateX(-50%) scale(1)   translateY(0);     opacity: 1; }
-}
-
-.badge-toast-header {
-  font-size: 0.68rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.13em;
-  color: var(--cyan);
-  margin-bottom: 10px;
-}
-
-.badge-toast-body {
   display: flex;
   align-items: center;
-  gap: 14px;
-  text-align: left;
-  margin-bottom: 12px;
+  gap: 10px;
 }
 
-.badge-toast-icon { font-size: 2.6rem; flex-shrink: 0; line-height: 1; }
+@keyframes bannerSlide {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+
+.badge-toast-icon { font-size: 1.5rem; line-height: 1; flex-shrink: 0; }
+
+.badge-toast-text {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.badge-toast-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--cyan);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
 
 .badge-toast-name {
-  font-size: 0.98rem;
-  font-weight: 800;
+  font-size: 0.85rem;
+  font-weight: 700;
   color: var(--text);
-  margin-bottom: 3px;
-}
-
-.badge-toast-desc {
-  font-size: 0.76rem;
-  color: var(--text-dim);
-  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .badge-toast-hint {
-  font-size: 0.76rem;
+  font-size: 0.72rem;
   color: var(--cyan);
   font-weight: 600;
-  border-top: 1px solid var(--border);
-  padding-top: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  opacity: 0.85;
 }
 
 
