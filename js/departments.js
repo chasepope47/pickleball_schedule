@@ -173,6 +173,10 @@ function _showDeptList(container) {
   container.innerHTML = `
     <div style="margin-bottom:12px">
       <div class="form-row" style="align-items:flex-end;gap:8px">
+        <div class="form-group" style="width:60px;margin-bottom:0">
+          <label for="newDeptIcon">Icon</label>
+          <input type="text" id="newDeptIcon" placeholder="🏢" maxlength="2" style="text-align:center" />
+        </div>
         <div class="form-group" style="flex:1;margin-bottom:0">
           <label for="newDeptName">New Department Name</label>
           <input type="text" id="newDeptName" placeholder="e.g. Engineering" maxlength="50" />
@@ -188,6 +192,7 @@ function _showDeptList(container) {
 
   document.getElementById('createDeptBtn').addEventListener('click', async () => {
     const name = document.getElementById('newDeptName').value.trim();
+    const icon = document.getElementById('newDeptIcon').calue.trim() || '🏢';
     if (!name) return;
     try {
       await addDoc(collection(db, 'departments'), { name, createdAt: serverTimestamp() });

@@ -109,3 +109,27 @@
 .btn-win  { background: var(--green); color: #fff; }
 .btn-loss { background: transparent; border: 1.5px solid var(--red); color: var(--red); }
 .btn-loss:hover { background: var(--red); color: #fff; }
+
+.dept-avatar-badge {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  background: var(--card);
+  border-radius: 50%;
+  font-size: 0.7rem;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px var(--border);
+  z-index: 2;
+}
+
+.modal-badge {
+  width: 28px;
+  height: 28px;
+  font-size: 1.2rem;
+  bottom: 0px;
+  right: 0px;
+}

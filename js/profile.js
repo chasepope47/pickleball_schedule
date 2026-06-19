@@ -22,11 +22,19 @@ export function getInitialsForProfile(p) {
 
 export function applyProfileToHeader(profile) {
   const avatar = document.getElementById('userAvatar');
-  if (profile.photoUrl) {
-    avatar.innerHTML = `<img src="${profile.photoUrl}" alt="" />`;
-  } else {
-    avatar.innerHTML = getInitials(profile.firstName, profile.lastName);
+  
+  let innerHTML = profile.photoUrl 
+    ? `<img src="${profile.photoUrl}" alt="" />` 
+    : getInitials(profile.firstName, profile.lastName);
+
+  // Appends the department badge if the user has opted in
+  if (profile.showDeptBadge && profile.deptIcon) {
+    innerHTML += `<div class="dept-avatar-badge">${profile.deptIcon}</div>`;
   }
+  
+  // Ensures the absolute positioned badge anchors correctly to the avatar
+  avatar.style.position = 'relative';
+  avatar.innerHTML = innerHTML;
   document.getElementById('userNameLabel').textContent = `${profile.firstName} ${profile.lastName}`;
 }
 
