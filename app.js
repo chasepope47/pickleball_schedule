@@ -1288,6 +1288,10 @@ function openMatchDetailModal(match) {
           if (newComp) Object.assign(cachedMatch, { gamesPlayed: numGames, scores, won: newWon });
           else { delete cachedMatch.gamesPlayed; delete cachedMatch.scores; delete cachedMatch.won; }
           matchCache.set(match.slotKey, cachedMatch);
+
+          // Re-run badge checks in case type/scores changed (e.g. edited to competitive 11-0)
+          checkAndAwardBadges({ ...cachedMatch });
+
           closeModal();
           showToast('Match updated!');
           render();
@@ -1367,44 +1371,54 @@ function showBadgeToast(badge) {
 }
 
 async function checkAndAwardBadges(matchData) {
-  const earned = new Set(currentProfile.badges || []);
-  const toAdd  = [];
+  try {
+    const earned = new Set(currentProfile.badges || []);
+    const toAdd  = [];
 
-  const holiday = getHoliday();
-  if (holiday && !earned.has(holiday.id)) toAdd.push(holiday.id);
+    const holiday = getHoliday();
+    if (holiday && !earned.has(holiday.id)) toAdd.push(holiday.id);
 
-  if (!earned.has('earlyBird') && matchData.hour < 8)  toAdd.push('earlyBird');
-  if (!earned.has('nightOwl')  && matchData.hour >= 20) toAdd.push('nightOwl');
+    if (!earned.has('earlyBird') && matchData.hour < 8)  toAdd.push('earlyBird');
+    if (!earned.has('nightOwl')  && matchData.hour >= 20) toAdd.push('nightOwl');
 
-  if (!earned.has('skunk') && matchData.type === 'competitive' && matchData.won) {
-    if ((matchData.scores || []).some(s => s.mine === 11 && s.theirs === 0))
-      toAdd.push('skunk');
-  }
+    if (!earned.has('skunk') && matchData.type === 'competitive' && matchData.won) {
+      if ((matchData.scores || []).some(s => s.mine === 11 && s.theirs === 0))
+        toAdd.push('skunk');
+    }
 
-  if (!earned.has('topDog') && matchData.type === 'competitive' && matchData.won) {
-    try {
-      const snap    = await getDocs(collection(db, 'players'));
-      const myWins  = (currentProfile.wins || 0) + 1;
+    // Save synchronous badges immediately — no async gap before this write
+    if (toAdd.length > 0) {
+      const allBadges = [...earned, ...toAdd];
+      await updateDoc(doc(db, 'players', currentUser.uid), { badges: allBadges });
+      currentProfile = { ...currentProfile, badges: allBadges };
+      setCachedProfile(currentProfile);
+      toAdd.forEach((id, i) => {
+        const b = BADGES[id];
+        if (b) setTimeout(() => showBadgeToast(b), 900 + i * 2200);
+      });
+    }
+
+    // TopDog check runs after sync badges are already saved
+    if (!new Set(currentProfile.badges || []).has('topDog') &&
+        matchData.type === 'competitive' && matchData.won) {
+      const snap     = await getDocs(collection(db, 'players'));
+      const myWins   = (currentProfile.wins || 0) + 1;
       const topOther = snap.docs
         .filter(d => d.id !== currentUser.uid)
         .reduce((max, d) => Math.max(max, d.data().wins || 0), 0);
-      if (myWins > topOther) toAdd.push('topDog');
-    } catch {}
-  }
-
-  if (toAdd.length === 0) return;
-
-  const allBadges = [...earned, ...toAdd];
-  try {
-    await updateDoc(doc(db, 'players', currentUser.uid), { badges: allBadges });
-    currentProfile = { ...currentProfile, badges: allBadges };
-    setCachedProfile(currentProfile);
-    toAdd.forEach((id, i) => {
-      const b = BADGES[id];
-      if (b) setTimeout(() => showBadgeToast(b), 900 + i * 2200);
-    });
+      if (myWins > topOther) {
+        const latestEarned = new Set(currentProfile.badges || []);
+        if (!latestEarned.has('topDog')) {
+          const updated = [...latestEarned, 'topDog'];
+          await updateDoc(doc(db, 'players', currentUser.uid), { badges: updated });
+          currentProfile = { ...currentProfile, badges: updated };
+          setCachedProfile(currentProfile);
+          setTimeout(() => showBadgeToast(BADGES.topDog), 900);
+        }
+      }
+    }
   } catch (err) {
-    console.warn('Badge award failed:', err);
+    console.warn('Badge check failed:', err);
   }
 }
 
