@@ -1519,6 +1519,47 @@ footer {
 
 .lb-badges { font-size: 0.8rem; letter-spacing: 1px; }
 
+/* Badge cards in profile modal */
+.badge-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.badge-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: border-color 0.15s;
+}
+
+.badge-card:hover { border-color: var(--cyan-border); }
+
+.badge-card-icon {
+  font-size: 1.5rem;
+  width: 36px;
+  text-align: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.badge-card-name {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 1px;
+}
+
+.badge-card-desc {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
 /* Badge unlocked toast */
 #badgeToast {
   position: fixed;

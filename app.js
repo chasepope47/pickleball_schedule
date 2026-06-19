@@ -41,7 +41,15 @@ const RATINGS = [
 ];
 
 const BADGES = {
-  holiday:   { icon: '🎄', name: 'Holiday Player', desc: 'Played a match on a major holiday' },
+  'holiday-newyear':     { icon: '🎆', name: "New Year's Day",    desc: "Played on New Year's Day" },
+  'holiday-valentine':   { icon: '💝', name: "Valentine's Day",   desc: "Played on Valentine's Day" },
+  'holiday-stpatrick':   { icon: '🍀', name: "St. Patrick's Day", desc: "Played on St. Patrick's Day" },
+  'holiday-july4':       { icon: '🎇', name: 'Independence Day',  desc: 'Played on Independence Day' },
+  'holiday-halloween':   { icon: '🎃', name: 'Halloween',         desc: 'Played on Halloween' },
+  'holiday-veterans':    { icon: '🎖️', name: 'Veterans Day',      desc: 'Played on Veterans Day' },
+  'holiday-xmaseve':     { icon: '⭐', name: 'Christmas Eve',     desc: 'Played on Christmas Eve' },
+  'holiday-xmas':        { icon: '🎄', name: 'Christmas',         desc: 'Played on Christmas Day' },
+  'holiday-newyearseve': { icon: '🥂', name: "New Year's Eve",    desc: "Played on New Year's Eve" },
   skunk:     { icon: '🦨', name: 'The Skunk',       desc: 'Won a game 11–0' },
   topDog:    { icon: '👑', name: 'Top Dog',          desc: 'Reached #1 on the leaderboard' },
   earlyBird: { icon: '🌅', name: 'Early Bird',       desc: 'Played a match before 8 AM' },
@@ -175,15 +183,19 @@ function adjustRating(current, won) {
   return Math.round(Math.min(5.0, Math.max(2.0, raw)) * 10) / 10;
 }
 
-function getHolidayName() {
-  const now   = new Date();
-  const key   = `${now.getMonth() + 1}/${now.getDate()}`;
-  const days  = {
-    '1/1':  "New Year's Day",  '2/14': "Valentine's Day",
-    '3/17': "St. Patrick's Day", '7/4': "Independence Day",
-    '10/31':"Halloween",       '11/11':"Veterans Day",
-    '12/24':"Christmas Eve",   '12/25':"Christmas",
-    '12/31':"New Year's Eve",
+function getHoliday() {
+  const now  = new Date();
+  const key  = `${now.getMonth() + 1}/${now.getDate()}`;
+  const days = {
+    '1/1':   { id: 'holiday-newyear',     name: "New Year's Day" },
+    '2/14':  { id: 'holiday-valentine',   name: "Valentine's Day" },
+    '3/17':  { id: 'holiday-stpatrick',   name: "St. Patrick's Day" },
+    '7/4':   { id: 'holiday-july4',       name: 'Independence Day' },
+    '10/31': { id: 'holiday-halloween',   name: 'Halloween' },
+    '11/11': { id: 'holiday-veterans',    name: 'Veterans Day' },
+    '12/24': { id: 'holiday-xmaseve',     name: 'Christmas Eve' },
+    '12/25': { id: 'holiday-xmas',        name: 'Christmas' },
+    '12/31': { id: 'holiday-newyearseve', name: "New Year's Eve" },
   };
   return days[key] || null;
 }
@@ -1347,7 +1359,8 @@ async function checkAndAwardBadges(matchData) {
   const earned = new Set(currentProfile.badges || []);
   const toAdd  = [];
 
-  if (!earned.has('holiday') && getHolidayName()) toAdd.push('holiday');
+  const holiday = getHoliday();
+  if (holiday && !earned.has(holiday.id)) toAdd.push(holiday.id);
 
   if (!earned.has('earlyBird') && matchData.hour < 8)  toAdd.push('earlyBird');
   if (!earned.has('nightOwl')  && matchData.hour >= 20) toAdd.push('nightOwl');
@@ -1514,11 +1527,18 @@ function openEditProfileModal() {
 
       ${(p.badges || []).length > 0 ? `
       <div class="badge-shelf">
-        <div class="badge-shelf-label">Badges</div>
-        <div class="badge-chips">
+        <div class="badge-shelf-label">Badges Earned</div>
+        <div class="badge-card-list">
           ${(p.badges || []).map(id => {
             const b = BADGES[id];
-            return b ? `<div class="badge-chip" title="${b.name} — ${b.desc}">${b.icon}</div>` : '';
+            return b ? `
+              <div class="badge-card">
+                <div class="badge-card-icon">${b.icon}</div>
+                <div class="badge-card-info">
+                  <div class="badge-card-name">${b.name}</div>
+                  <div class="badge-card-desc">${b.desc}</div>
+                </div>
+              </div>` : '';
           }).join('')}
         </div>
       </div>` : ''}
