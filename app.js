@@ -1226,7 +1226,7 @@ function openMatchDetailModal(match) {
       ${ratingsHtml}
       <div class="form-group" style="margin-top:12px">
         <label for="editMatchComment">Match Notes <span class="label-hint">(optional)</span></label>
-        <textarea id="editMatchComment" class="match-comment" rows="2" placeholder="Add a note...">${match.comment || ''}</textarea>
+        <textarea id="editMatchComment" class="match-comment" rows="2" placeholder="Add a note...">${typeof match.comment === 'string' ? match.comment : ''}</textarea>
       </div>
     `,
     actions: [
@@ -1281,7 +1281,13 @@ function openMatchDetailModal(match) {
             if (fresh) { currentProfile = fresh; applyProfileToHeader(fresh); }
           }
 
-          matchCache.set(match.slotKey, { ...match, ...updatedFields });
+          // Build cache entry using plain values (never Firestore sentinels)
+          const cachedMatch = { ...match, type: matchType };
+          if (comment) cachedMatch.comment = comment;
+          else delete cachedMatch.comment;
+          if (newComp) Object.assign(cachedMatch, { gamesPlayed: numGames, scores, won: newWon });
+          else { delete cachedMatch.gamesPlayed; delete cachedMatch.scores; delete cachedMatch.won; }
+          matchCache.set(match.slotKey, cachedMatch);
           closeModal();
           showToast('Match updated!');
           render();
@@ -1345,14 +1351,19 @@ function showBadgeToast(badge) {
   const t = document.createElement('div');
   t.id = 'badgeToast';
   t.innerHTML = `
-    <span class="badge-toast-icon">${badge.icon}</span>
-    <div>
-      <div class="badge-toast-title">Badge Unlocked!</div>
-      <div class="badge-toast-name">${badge.name}</div>
+    <div class="badge-toast-header">🏅 Badge Unlocked!</div>
+    <div class="badge-toast-body">
+      <span class="badge-toast-icon">${badge.icon}</span>
+      <div class="badge-toast-text">
+        <div class="badge-toast-name">${badge.name}</div>
+        <div class="badge-toast-desc">${badge.desc}</div>
+      </div>
     </div>
+    <div class="badge-toast-hint">Tap here to view all your badges →</div>
   `;
+  t.addEventListener('click', () => { t.remove(); openEditProfileModal(); });
   document.body.appendChild(t);
-  setTimeout(() => t.remove(), 4500);
+  setTimeout(() => { if (document.getElementById('badgeToast') === t) t.remove(); }, 7000);
 }
 
 async function checkAndAwardBadges(matchData) {
@@ -1390,7 +1401,7 @@ async function checkAndAwardBadges(matchData) {
     setCachedProfile(currentProfile);
     toAdd.forEach((id, i) => {
       const b = BADGES[id];
-      if (b) setTimeout(() => showBadgeToast(b), i * 1600);
+      if (b) setTimeout(() => showBadgeToast(b), 900 + i * 2200);
     });
   } catch (err) {
     console.warn('Badge award failed:', err);
