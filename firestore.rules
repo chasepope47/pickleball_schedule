@@ -22,8 +22,8 @@ service cloud.firestore {
 
     // Player profiles
     match /players/{userId} {
-      // Own profile, or any manager/admin, can read
-      allow read: if isSignedIn() && (request.auth.uid == userId || canManage());
+      // Any signed-in user can read player docs (required for leaderboard + reservations)
+      allow read: if isSignedIn();
 
       // Only managers/admins can create profiles (no self-registration)
       allow create: if canManage();
