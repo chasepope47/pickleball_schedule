@@ -1,0 +1,144 @@
+/* =============================================================================
+   BADGES
+   ============================================================================= */
+
+.badge-shelf {
+  margin: 10px 0 14px;
+}
+
+.badge-shelf-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 7px;
+}
+
+.badge-chips {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.badge-chip {
+  font-size: 1.3rem;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.badge-chip:hover {
+  transform: scale(1.15);
+  box-shadow: 0 4px 14px var(--shadow);
+}
+
+.lb-badges { font-size: 0.8rem; letter-spacing: 1px; }
+
+.badge-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.badge-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: border-color 0.15s;
+}
+
+.badge-card:hover { border-color: var(--cyan-border); }
+
+.badge-card-icon {
+  font-size: 1.5rem;
+  width: 36px;
+  text-align: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.badge-card-name {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 1px;
+}
+
+.badge-card-desc {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+/* Badge unlocked banner */
+#badgeToast {
+  position: fixed;
+  top: 64px;
+  left: 0;
+  right: 0;
+  background: color-mix(in srgb, var(--cyan) 12%, var(--card));
+  border-bottom: 2px solid var(--cyan);
+  box-shadow: 0 4px 18px var(--shadow);
+  padding: 11px 20px;
+  z-index: 200;
+  animation: bannerSlide 0.3s ease-out;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+@keyframes bannerSlide {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
+}
+
+.badge-toast-icon { font-size: 1.5rem; line-height: 1; flex-shrink: 0; }
+
+.badge-toast-text {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.badge-toast-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--cyan);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.badge-toast-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.badge-toast-hint {
+  font-size: 0.72rem;
+  color: var(--cyan);
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  opacity: 0.85;
+}

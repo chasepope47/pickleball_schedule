@@ -1,0 +1,176 @@
+/* =============================================================================
+   TIME SLOTS
+   ============================================================================= */
+
+.slot {
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--hover);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s, opacity 0.15s;
+  user-select: none;
+}
+
+.slot-row1 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.slot-time {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.slot-count {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-left: auto;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.slot-action {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 5px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.slot-share-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+.slot-share-btn:hover { color: var(--cyan); }
+
+.slot-players {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 1px;
+}
+
+.player-chip {
+  font-size: 0.65rem;
+  padding: 2px 7px;
+  border-radius: 20px;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+
+.player-chip.filled {
+  background: var(--orange-bg);
+  border: 1px solid var(--orange-border);
+  color: var(--orange);
+}
+
+.player-chip.mine-chip {
+  background: var(--cyan-bg);
+  border: 1px solid var(--cyan-border);
+  color: var(--cyan);
+}
+
+.player-chip.empty-spot {
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--text-muted);
+}
+
+.slot.open {
+  background: var(--cyan-bg);
+  border-color: var(--cyan-border);
+  cursor: pointer;
+}
+.slot.open:hover {
+  border-color: var(--cyan);
+  box-shadow: 0 0 10px var(--cyan-glow);
+}
+.slot.open .slot-time  { color: var(--cyan); }
+.slot.open .slot-action { background: var(--cyan); color: #000; }
+
+.slot.joinable {
+  background: var(--cyan-bg);
+  border-color: var(--cyan-border);
+  cursor: pointer;
+}
+.slot.joinable:hover {
+  border-color: var(--cyan);
+  box-shadow: 0 0 10px var(--cyan-glow);
+}
+.slot.joinable .slot-action { background: var(--cyan); color: #000; }
+
+.slot.mine {
+  background: var(--orange-bg);
+  border-color: var(--orange-border);
+  cursor: pointer;
+}
+.slot.mine:hover {
+  border-color: var(--orange);
+  box-shadow: 0 0 8px rgba(255,152,0,0.2);
+}
+.slot.mine .slot-time   { color: var(--orange); }
+.slot.mine .slot-action { background: var(--orange); color: #000; }
+
+.slot.full {
+  opacity: 0.65;
+  cursor: default;
+}
+.slot.full .slot-action {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.slot.past {
+  opacity: 0.3;
+  cursor: default;
+  pointer-events: none;
+}
+
+.slot.past-result {
+  opacity: 0.55;
+  cursor: pointer;
+  border-color: var(--cyan-border);
+}
+.slot.past-result:hover { opacity: 0.75; }
+.slot.past-result .slot-action {
+  background: transparent;
+  border: 1px solid var(--cyan-border);
+  color: var(--cyan-dim);
+}
+
+.slot.past-result.win-logged {
+  border-color: rgba(62, 207, 142, 0.3);
+}
+.slot.past-result.win-logged .slot-action {
+  border: 1px solid rgba(62, 207, 142, 0.4);
+  color: var(--green);
+}
+.slot.past-result.loss-logged {
+  border-color: rgba(229, 57, 53, 0.25);
+}
+.slot.past-result.loss-logged .slot-action {
+  border: 1px solid rgba(229, 57, 53, 0.35);
+  color: var(--red);
+}
+.slot.past-result.friendly-logged .slot-action {
+  border: 1px solid var(--cyan-border);
+  color: var(--cyan);
+}

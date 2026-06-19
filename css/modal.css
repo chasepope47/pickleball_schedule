@@ -1,0 +1,121 @@
+/* =============================================================================
+   MODAL
+   ============================================================================= */
+
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+  padding: 20px;
+}
+
+.modal-overlay.active { display: flex; }
+
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px 24px;
+  width: 100%;
+  max-width: 440px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 0 40px var(--cyan-glow), 0 20px 50px var(--shadow);
+  animation: pop 0.18s ease-out;
+  transition: background 0.25s;
+}
+
+@keyframes pop {
+  from { transform: scale(0.92); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+
+.modal h4       { font-size: 1rem; color: var(--text); font-weight: 700; margin-bottom: 4px; }
+.modal .modal-sub { font-size: 0.8rem; color: var(--cyan); margin-bottom: 18px; }
+
+.modal-player-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.modal-player-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  font-size: 0.88rem;
+}
+
+.modal-player-row .p-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--orange), #ff5500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.modal-player-row.is-me .p-avatar {
+  background: linear-gradient(135deg, var(--cyan), var(--cyan-dim));
+  color: #000;
+}
+
+.modal-player-row .p-name  { flex: 1; font-weight: 600; }
+.modal-player-row .p-rating { font-size: 0.75rem; color: var(--text-dim); }
+
+.modal-open-spots {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  padding: 6px 12px;
+  font-style: italic;
+}
+
+.share-box {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin: 10px 0;
+}
+
+.share-box input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  outline: none;
+  min-width: 0;
+}
+
+.share-box button {
+  background: var(--cyan);
+  color: #000;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: filter 0.15s;
+}
+.share-box button:hover { filter: brightness(1.1); }

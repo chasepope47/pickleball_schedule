@@ -1,0 +1,111 @@
+/* =============================================================================
+   PHOTO UPLOAD (inside profile modal)
+   ============================================================================= */
+
+.photo-upload-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.photo-preview {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: var(--cyan);
+  color: #000;
+  font-size: 1.2rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 2.5px solid var(--cyan-border);
+  box-shadow: 0 0 12px var(--cyan-glow);
+}
+
+.photo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.photo-upload-btn {
+  display: inline-block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-dim);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 14px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.photo-upload-btn:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+
+
+/* =============================================================================
+   PROFILE STATS (inside edit modal)
+   ============================================================================= */
+
+.profile-stats {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.stat-box {
+  flex: 1;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 8px;
+  text-align: center;
+}
+
+.stat-box .stat-val {
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.stat-box .stat-lbl {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.stat-box.wins   .stat-val { color: var(--green); }
+.stat-box.losses .stat-val { color: var(--red); }
+.stat-box.rating .stat-val { color: var(--cyan); }
+
+.log-result-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.btn-win, .btn-loss {
+  flex: 1;
+  padding: 7px;
+  border-radius: 7px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  transition: opacity 0.15s, transform 0.1s;
+}
+.btn-win:hover, .btn-loss:hover { opacity: 0.88; transform: translateY(-1px); }
+
+.btn-win  { background: var(--green); color: #fff; }
+.btn-loss { background: transparent; border: 1.5px solid var(--red); color: var(--red); }
+.btn-loss:hover { background: var(--red); color: #fff; }
