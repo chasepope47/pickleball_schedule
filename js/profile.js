@@ -1,10 +1,9 @@
-import { db, doc, getDoc, setDoc, auth, signOut } from './firebase.js';
+import { db, doc, getDoc, setDoc, auth, signOut, updatePassword } from './firebase.js';
 import { state } from './state.js';
 import { BADGES, WAIVER_BODY_HTML } from './constants.js';
 import { getInitials, resizeImage } from './utils.js';
 import { setModal, closeModal, makeBtn, showToast } from './ui.js';
 import { getDeptById, openDeptModal } from './departments.js';
-import { updatePassword } from './firebase.js';
 
 const PROFILE_KEY = 'ss_profile_v2';
 
@@ -27,9 +26,10 @@ export function applyProfileToHeader(profile) {
     ? `<img src="${profile.photoUrl}" alt="" />` 
     : getInitials(profile.firstName, profile.lastName);
 
-  // Appends the department badge if the user has opted in
-  if (profile.showDeptBadge && profile.deptIcon) {
-    innerHTML += `<div class="dept-avatar-badge">${profile.deptIcon}</div>`;
+  // Appends the department badge if the user has opted in and the dept has an icon
+  const deptIcon = getDeptById(profile.department)?.icon;
+  if (profile.showDeptBadge && deptIcon) {
+    innerHTML += `<div class="dept-avatar-badge">${deptIcon}</div>`;
   }
   
   // Ensures the absolute positioned badge anchors correctly to the avatar
@@ -155,13 +155,22 @@ export function openEditProfileModal() {
         </div>
       </div>` : ''}
 
-      ${p.department ? `
-      <div class="dept-profile-row">
-        <span class="dept-profile-label">🏢 Department</span>
-        <button class="dept-profile-link" id="openMyDept">
-          ${getDeptById(p.department)?.name ?? p.department} →
-        </button>
-      </div>` : ''}
+      ${(() => {
+        if (!p.department) return '';
+        const dept     = getDeptById(p.department);
+        const deptName = dept?.name ?? '…';
+        const deptIco  = dept?.icon ?? '';
+        return `
+          <div class="dept-profile-row">
+            <span class="dept-profile-label">🏢 Department</span>
+            <button class="dept-profile-link" id="openMyDept">${deptIco ? deptIco + ' ' : ''}${deptName} →</button>
+          </div>
+          ${deptIco ? `
+          <label style="display:flex;align-items:center;gap:8px;font-size:.8rem;color:var(--text-dim);margin-top:6px;cursor:pointer">
+            <input type="checkbox" id="showDeptBadge" ${p.showDeptBadge ? 'checked' : ''} />
+            Show ${deptIco} department badge on my avatar
+          </label>` : ''}`;
+      })()}
 
       ${'Notification' in window ? `
         <div class="notif-opt" style="margin-top:12px">
@@ -204,7 +213,8 @@ export function openEditProfileModal() {
           try { await Notification.requestPermission(); } catch {}
         }
 
-        const updated = { ...p, firstName, lastName, notif: wantsNotif };
+        const showDeptBadge = document.getElementById('showDeptBadge')?.checked ?? (p.showDeptBadge ?? false);
+        const updated = { ...p, firstName, lastName, notif: wantsNotif, showDeptBadge };
         if (pendingPhotoUrl !== null) updated.photoUrl = pendingPhotoUrl;
         await saveFirestoreProfile(state.currentUser.uid, updated);
         applyProfileToHeader(updated);

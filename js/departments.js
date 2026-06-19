@@ -83,7 +83,7 @@ function _renderSection() {
       <div class="dept-row ${isMe ? 'dept-mine' : ''}" data-dept="${dept.id}" role="button" tabindex="0">
         <div class="dept-rank">${medal}</div>
         <div class="dept-info">
-          <div class="dept-name">${dept.name}${isMe ? ' <span class="dept-you-tag">you</span>' : ''}</div>
+          <div class="dept-name">${dept.icon ? `${dept.icon} ` : ''}${dept.name}${isMe ? ' <span class="dept-you-tag">you</span>' : ''}</div>
           <div class="dept-meta">${dept.members.length} member${dept.members.length !== 1 ? 's' : ''}</div>
         </div>
         <div class="dept-record">
@@ -131,7 +131,7 @@ export function openDeptModal(deptId) {
     : `<p style="color:var(--text-muted);font-size:.85rem;padding:8px 0">No members yet.</p>`;
 
   setModal({
-    title:   dept.name,
+    title:   `${dept.icon ? dept.icon + ' ' : ''}${dept.name}`,
     sub:     `${totalWins}W · ${totalLosses}L · ${members.length} member${members.length !== 1 ? 's' : ''}`,
     body:    `<div class="dept-modal-members">${memberHtml}</div>`,
     actions: [makeBtn('Close', 'btn-secondary', closeModal)],
@@ -159,7 +159,7 @@ function _showDeptList(container) {
   const rows = standings.map(dept => `
     <div class="dept-admin-row">
       <div class="dept-admin-info">
-        <div class="dept-admin-name">${dept.name}</div>
+        <div class="dept-admin-name">${dept.icon ? `${dept.icon} ` : ''}${dept.name}</div>
         <div class="dept-admin-meta">
           ${dept.members.length} member${dept.members.length !== 1 ? 's' : ''} · ${dept.wins}W ${dept.losses}L
         </div>
@@ -192,10 +192,10 @@ function _showDeptList(container) {
 
   document.getElementById('createDeptBtn').addEventListener('click', async () => {
     const name = document.getElementById('newDeptName').value.trim();
-    const icon = document.getElementById('newDeptIcon').calue.trim() || '🏢';
+    const icon = document.getElementById('newDeptIcon').value.trim() || '🏢';
     if (!name) return;
     try {
-      await addDoc(collection(db, 'departments'), { name, createdAt: serverTimestamp() });
+      await addDoc(collection(db, 'departments'), { name, icon, createdAt: serverTimestamp() });
       showToast(`Department "${name}" created.`);
       await renderAdminDeptContent(container);
     } catch (err) {

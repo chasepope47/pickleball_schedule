@@ -124,7 +124,10 @@ onAuthStateChanged(auth, async (user) => {
     render();
     startSync();
     setInterval(render, 60_000);
-    refreshDeptSection(); // fire-and-forget
+    // Re-apply header after dept icons load so the avatar badge shows
+    refreshDeptSection().then(() => {
+      if (state.currentProfile) applyProfileToHeader(state.currentProfile);
+    });
   } else {
     applyProfileToHeader(state.currentProfile);
     wireAdminBtn();
