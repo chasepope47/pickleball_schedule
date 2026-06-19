@@ -4,6 +4,7 @@ import { BADGES, WAIVER_BODY_HTML } from './constants.js';
 import { getInitials, resizeImage } from './utils.js';
 import { setModal, closeModal, makeBtn, showToast } from './ui.js';
 import { getDeptById, openDeptModal } from './departments.js';
+import { updatePassword } from './firebase.js';
 
 const PROFILE_KEY = 'ss_profile_v2';
 
@@ -168,6 +169,14 @@ export function openEditProfileModal() {
              <button class="sign-link" id="signWaiverBtn">Sign Now</button>`}
       </div>
 
+      <div class="form-group" style="margin-top:16px;">
+        <label for="newPassword">Change Password</label>
+        <div style="display:flex; gap:8px;">
+          <input type="password" id="newPassword" placeholder="New password (min 6 chars)" style="flex:1;" />
+          <button class="btn btn-secondary" id="updatePwdBtn" style="white-space:nowrap;">Update</button>
+        </div>
+      </div>
+
       <hr class="modal-divider" />
       <button class="btn-logout" id="logoutBtn">Sign Out</button>
     `,
@@ -219,6 +228,29 @@ export function openEditProfileModal() {
   document.getElementById('logoutBtn').addEventListener('click', async () => {
     closeModal();
     try { await signOut(auth); } catch {}
+  });
+
+  document.getElementById('updatePwdBtn')?.addEventListener('click', async (e) => {
+    e.preventDefault();
+    const newPwd = document.getElementById('newPassword').value;
+    
+    if (newPwd.length < 6) {
+      showToast('Password must be at least 6 characters.', 'error');
+      return;
+    }
+
+    try {
+      await updatePassword(state.currentUser, newPwd);
+      showToast('Password updated successfully.');
+      document.getElementById('newPassword').value = '';
+    } catch (error) {
+      console.error('Password update error:', error);
+      if (error.code === 'auth/requires-recent-login') {
+        showToast('Security requirement: Please sign out and sign back in to change your password.', 'error');
+      } else {
+        showToast('Could not update password. Please try again.', 'error');
+      }
+    }
   });
 }
 
