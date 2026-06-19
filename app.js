@@ -40,6 +40,14 @@ const RATINGS = [
   [5.0, '5.0 – Professional'],
 ];
 
+const BADGES = {
+  holiday:   { icon: '🎄', name: 'Holiday Player', desc: 'Played a match on a major holiday' },
+  skunk:     { icon: '🦨', name: 'The Skunk',       desc: 'Won a game 11–0' },
+  topDog:    { icon: '👑', name: 'Top Dog',          desc: 'Reached #1 on the leaderboard' },
+  earlyBird: { icon: '🌅', name: 'Early Bird',       desc: 'Played a match before 8 AM' },
+  nightOwl:  { icon: '🦉', name: 'Night Owl',        desc: 'Played a match at or after 8 PM' },
+};
+
 const WAIVER_BODY_HTML = `
   <p class="waiver-title">Waiver &amp; Release of Liability</p>
   <p><strong>Assumption of Risk.</strong> Pickleball is a physical sport. I understand that participation involves inherent risks including, but not limited to, physical exertion, falls, collisions with other players or equipment, muscle strains, joint injuries, and other bodily harm.</p>
@@ -165,6 +173,19 @@ function adjustRating(current, won) {
   const delta = won ? 0.1 : -0.1;
   const raw   = (parseFloat(current) || 3.0) + delta;
   return Math.round(Math.min(5.0, Math.max(2.0, raw)) * 10) / 10;
+}
+
+function getHolidayName() {
+  const now   = new Date();
+  const key   = `${now.getMonth() + 1}/${now.getDate()}`;
+  const days  = {
+    '1/1':  "New Year's Day",  '2/14': "Valentine's Day",
+    '3/17': "St. Patrick's Day", '7/4': "Independence Day",
+    '10/31':"Halloween",       '11/11':"Veterans Day",
+    '12/24':"Christmas Eve",   '12/25':"Christmas",
+    '12/31':"New Year's Eve",
+  };
+  return days[key] || null;
 }
 
 function resizeImage(file, size, quality, callback) {
@@ -1046,6 +1067,7 @@ function openMatchLogModal(court, dayIdx, hour) {
           };
           const matchRef = await addDoc(collection(db, 'matches'), matchData);
           matchCache.set(slotKey, { id: matchRef.id, ...matchData });
+          checkAndAwardBadges(matchData); // fire-and-forget
 
           if (matchType === 'competitive') {
             const won       = matchResult === 'win';
@@ -1134,23 +1156,28 @@ function openMatchLogModal(court, dayIdx, hour) {
 // =============================================================================
 
 function openMatchDetailModal(match) {
-  const typeLabel  = match.type === 'competitive'
-    ? (match.won ? '🏆 Competitive — Win' : '✗ Competitive — Loss')
-    : '🤝 Friendly';
-  const badgeClass = match.type === 'competitive' ? (match.won ? 'win' : 'loss') : 'friendly';
-  const dateStr    = dayDate(match.dayIdx).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const dateStr   = dayDate(match.dayIdx).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  let matchType   = match.type;
+  let matchResult = match.type === 'competitive' ? (match.won ? 'win' : 'loss') : null;
+  let numGames    = match.gamesPlayed || (match.scores || []).length || 3;
 
-  const scoresHtml = (match.scores || []).length
-    ? `<div class="match-scores">${match.scores.map((s, i) =>
-        `<span class="score-chip">Game ${i + 1}: <strong>${s.mine}–${s.theirs}</strong></span>`
-      ).join('')}</div>`
-    : '';
+  // Pre-build score rows for initial render
+  const initScores = Array.from({ length: numGames }, (_, i) => {
+    const s = (match.scores || [])[i] || {};
+    return `
+      <div class="score-row">
+        <span class="score-label">Game ${i + 1}</span>
+        <input type="number" class="score-input" id="esg${i + 1}a" min="0" max="99" value="${s.mine ?? ''}" placeholder="Yours" />
+        <span class="score-dash">–</span>
+        <input type="number" class="score-input" id="esg${i + 1}b" min="0" max="99" value="${s.theirs ?? ''}" placeholder="Theirs" />
+      </div>`;
+  }).join('');
 
   const ratedPlayers = (match.players || []).filter(p =>
     p.uid !== currentUser?.uid && match.playerRatings?.[p.uid]
   );
   const ratingsHtml = ratedPlayers.length
-    ? `<div class="match-player-ratings">
+    ? `<div class="match-player-ratings" style="margin-top:12px">
         ${ratedPlayers.map(p => `
           <div class="match-rate-row">
             <div class="p-avatar">${getInitials(p.firstName, p.lastName)}</div>
@@ -1161,32 +1188,200 @@ function openMatchDetailModal(match) {
     : '';
 
   setModal({
-    title: 'Match Details',
+    title: 'Edit Match',
     sub:   `Court ${match.court} · ${DAY_NAMES[match.dayIdx]}, ${dateStr} · ${fmtHour(match.hour)}`,
     body: `
-      <div class="match-result-badge ${badgeClass}">${typeLabel}</div>
-      ${scoresHtml}
+      <div class="match-type-row">
+        <button class="match-type-btn ${matchType === 'friendly'    ? 'active' : ''}" id="editMtFriendly">🤝 Friendly</button>
+        <button class="match-type-btn ${matchType === 'competitive' ? 'active' : ''}" id="editMtCompetitive">🏆 Competitive</button>
+      </div>
+      <div id="editCompetitiveFields" style="display:${matchType === 'competitive' ? 'block' : 'none'}">
+        <div class="form-group">
+          <label for="editGamesPlayed">Games Played</label>
+          <select id="editGamesPlayed">
+            ${[1,2,3,4,5].map(n => `<option value="${n}" ${n === numGames ? 'selected' : ''}>${n} game${n !== 1 ? 's' : ''}</option>`).join('')}
+          </select>
+        </div>
+        <div id="editScoreFields">${initScores}</div>
+        <div class="form-group" style="margin-top:6px">
+          <label>Your Result</label>
+          <div class="result-row">
+            <button class="result-btn win  ${matchResult === 'win'  ? 'active' : ''}" id="editResultWin">✓ Win</button>
+            <button class="result-btn loss ${matchResult === 'loss' ? 'active' : ''}" id="editResultLoss">✗ Loss</button>
+          </div>
+        </div>
+      </div>
       ${ratingsHtml}
-      <div class="form-group">
+      <div class="form-group" style="margin-top:12px">
         <label for="editMatchComment">Match Notes <span class="label-hint">(optional)</span></label>
         <textarea id="editMatchComment" class="match-comment" rows="2" placeholder="Add a note...">${match.comment || ''}</textarea>
       </div>
     `,
     actions: [
-      makeBtn('Close', 'btn-secondary', closeModal),
-      makeBtn('Save Notes', 'btn-primary', async () => {
+      makeBtn('Cancel', 'btn-secondary', closeModal),
+      makeBtn('Save Changes', 'btn-primary', async () => {
+        if (matchType === 'competitive' && !matchResult) {
+          showToast('Please select Win or Loss.', 'error');
+          return;
+        }
+
+        const scores = [];
+        if (matchType === 'competitive') {
+          for (let i = 1; i <= numGames; i++) {
+            const a = parseInt(document.getElementById(`esg${i}a`)?.value || '0');
+            const b = parseInt(document.getElementById(`esg${i}b`)?.value || '0');
+            scores.push({ mine: a, theirs: b });
+          }
+        }
         const comment = document.getElementById('editMatchComment').value.trim();
+        const newWon  = matchResult === 'win';
+
+        // Compute stat delta
+        const profileUpdates = {};
+        const oldComp = match.type === 'competitive';
+        const newComp = matchType === 'competitive';
+
+        if (oldComp && !newComp) {
+          profileUpdates[match.won ? 'wins' : 'losses'] = increment(-1);
+          profileUpdates.rating = adjustRating(currentProfile.rating, !match.won);
+        } else if (!oldComp && newComp) {
+          profileUpdates[newWon ? 'wins' : 'losses'] = increment(1);
+          profileUpdates.rating = adjustRating(currentProfile.rating, newWon);
+        } else if (oldComp && newComp && match.won !== newWon) {
+          profileUpdates[match.won ? 'wins' : 'losses'] = increment(-1);
+          profileUpdates[newWon   ? 'wins' : 'losses']  = increment(1);
+          profileUpdates.rating = adjustRating(adjustRating(currentProfile.rating, !match.won), newWon);
+        }
+
         try {
-          await updateDoc(doc(db, 'matches', match.id), { comment });
-          matchCache.set(match.slotKey, { ...match, comment });
+          const updatedFields = {
+            type: matchType,
+            ...(comment ? { comment } : { comment: deleteField() }),
+            ...(newComp
+              ? { gamesPlayed: numGames, scores, won: newWon }
+              : { gamesPlayed: deleteField(), scores: deleteField(), won: deleteField() }),
+          };
+          await updateDoc(doc(db, 'matches', match.id), updatedFields);
+
+          if (Object.keys(profileUpdates).length > 0) {
+            await updateDoc(doc(db, 'players', currentUser.uid), profileUpdates);
+            const fresh = await loadFirestoreProfile(currentUser.uid);
+            if (fresh) { currentProfile = fresh; applyProfileToHeader(fresh); }
+          }
+
+          matchCache.set(match.slotKey, { ...match, ...updatedFields });
           closeModal();
-          showToast('Match notes saved.');
-        } catch {
-          showToast('Could not save — please try again.', 'error');
+          showToast('Match updated!');
+          render();
+        } catch (err) {
+          console.error('Match update failed:', err);
+          showToast('Could not update — please try again.', 'error');
         }
       }),
     ],
   });
+
+  function setEditType(type) {
+    matchType = type;
+    document.getElementById('editMtFriendly').classList.toggle('active', type === 'friendly');
+    document.getElementById('editMtCompetitive').classList.toggle('active', type === 'competitive');
+    document.getElementById('editCompetitiveFields').style.display = type === 'competitive' ? 'block' : 'none';
+    if (type === 'competitive') buildEditScoreFields();
+  }
+
+  function buildEditScoreFields() {
+    numGames = parseInt(document.getElementById('editGamesPlayed').value);
+    const el = document.getElementById('editScoreFields');
+    el.innerHTML = '';
+    for (let i = 1; i <= numGames; i++) {
+      const s = (match.scores || [])[i - 1] || {};
+      el.innerHTML += `
+        <div class="score-row">
+          <span class="score-label">Game ${i}</span>
+          <input type="number" class="score-input" id="esg${i}a" min="0" max="99" value="${s.mine ?? ''}" placeholder="Yours" />
+          <span class="score-dash">–</span>
+          <input type="number" class="score-input" id="esg${i}b" min="0" max="99" value="${s.theirs ?? ''}" placeholder="Theirs" />
+        </div>`;
+    }
+  }
+
+  document.getElementById('editMtFriendly').addEventListener('click', () => setEditType('friendly'));
+  document.getElementById('editMtCompetitive').addEventListener('click', () => setEditType('competitive'));
+  document.getElementById('editGamesPlayed')?.addEventListener('change', buildEditScoreFields);
+
+  document.getElementById('editResultWin').addEventListener('click', () => {
+    matchResult = 'win';
+    document.getElementById('editResultWin').classList.add('active');
+    document.getElementById('editResultLoss').classList.remove('active');
+  });
+
+  document.getElementById('editResultLoss').addEventListener('click', () => {
+    matchResult = 'loss';
+    document.getElementById('editResultLoss').classList.add('active');
+    document.getElementById('editResultWin').classList.remove('active');
+  });
+}
+
+
+// =============================================================================
+// EASTER EGG BADGES
+// =============================================================================
+
+function showBadgeToast(badge) {
+  const existing = document.getElementById('badgeToast');
+  if (existing) existing.remove();
+  const t = document.createElement('div');
+  t.id = 'badgeToast';
+  t.innerHTML = `
+    <span class="badge-toast-icon">${badge.icon}</span>
+    <div>
+      <div class="badge-toast-title">Badge Unlocked!</div>
+      <div class="badge-toast-name">${badge.name}</div>
+    </div>
+  `;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 4500);
+}
+
+async function checkAndAwardBadges(matchData) {
+  const earned = new Set(currentProfile.badges || []);
+  const toAdd  = [];
+
+  if (!earned.has('holiday') && getHolidayName()) toAdd.push('holiday');
+
+  if (!earned.has('earlyBird') && matchData.hour < 8)  toAdd.push('earlyBird');
+  if (!earned.has('nightOwl')  && matchData.hour >= 20) toAdd.push('nightOwl');
+
+  if (!earned.has('skunk') && matchData.type === 'competitive' && matchData.won) {
+    if ((matchData.scores || []).some(s => s.mine === 11 && s.theirs === 0))
+      toAdd.push('skunk');
+  }
+
+  if (!earned.has('topDog') && matchData.type === 'competitive' && matchData.won) {
+    try {
+      const snap    = await getDocs(collection(db, 'players'));
+      const myWins  = (currentProfile.wins || 0) + 1;
+      const topOther = snap.docs
+        .filter(d => d.id !== currentUser.uid)
+        .reduce((max, d) => Math.max(max, d.data().wins || 0), 0);
+      if (myWins > topOther) toAdd.push('topDog');
+    } catch {}
+  }
+
+  if (toAdd.length === 0) return;
+
+  const allBadges = [...earned, ...toAdd];
+  try {
+    await updateDoc(doc(db, 'players', currentUser.uid), { badges: allBadges });
+    currentProfile = { ...currentProfile, badges: allBadges };
+    setCachedProfile(currentProfile);
+    toAdd.forEach((id, i) => {
+      const b = BADGES[id];
+      if (b) setTimeout(() => showBadgeToast(b), i * 1600);
+    });
+  } catch (err) {
+    console.warn('Badge award failed:', err);
+  }
 }
 
 
@@ -1225,17 +1420,18 @@ async function openLeaderboard() {
       const l     = p.losses || 0;
       const total = w + l;
       const pct   = total > 0 ? Math.round((w / total) * 100) + '%' : '—';
-      const isMe   = p.uid === currentUser?.uid;
-      const medal  = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`;
-      const avatar = p.photoUrl
+      const isMe       = p.uid === currentUser?.uid;
+      const medal      = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}`;
+      const avatar     = p.photoUrl
         ? `<img src="${p.photoUrl}" alt="" />`
         : getInitials(p.firstName, p.lastName);
+      const badgePips  = (p.badges || []).slice(0, 3).map(id => BADGES[id]?.icon || '').join('');
       return `
         <div class="leaderboard-row ${isMe ? 'me' : ''}">
           <span class="lb-rank">${medal}</span>
           <div class="lb-avatar ${p.photoUrl ? 'has-photo' : ''}">${avatar}</div>
           <div class="lb-info">
-            <span class="lb-name">${p.firstName} ${p.lastName}${isMe ? ' (you)' : ''}</span>
+            <span class="lb-name">${p.firstName} ${p.lastName}${isMe ? ' (you)' : ''}${badgePips ? ` <span class="lb-badges">${badgePips}</span>` : ''}</span>
             <span class="lb-rating">★ ${p.rating || '—'}</span>
           </div>
           <div class="lb-record">
@@ -1315,6 +1511,17 @@ function openEditProfileModal() {
       <p style="font-size:.7rem;color:var(--text-muted);text-align:center;margin-top:-6px;margin-bottom:10px">
         Rating adjusts automatically after each competitive match
       </p>
+
+      ${(p.badges || []).length > 0 ? `
+      <div class="badge-shelf">
+        <div class="badge-shelf-label">Badges</div>
+        <div class="badge-chips">
+          ${(p.badges || []).map(id => {
+            const b = BADGES[id];
+            return b ? `<div class="badge-chip" title="${b.name} — ${b.desc}">${b.icon}</div>` : '';
+          }).join('')}
+        </div>
+      </div>` : ''}
 
       ${'Notification' in window ? `
         <div class="notif-opt" style="margin-top:12px">

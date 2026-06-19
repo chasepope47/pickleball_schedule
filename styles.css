@@ -1476,6 +1476,88 @@ footer {
 
 
 /* =============================================================================
+   BADGES
+   ============================================================================= */
+
+.badge-shelf {
+  margin: 10px 0 14px;
+}
+
+.badge-shelf-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 7px;
+}
+
+.badge-chips {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.badge-chip {
+  font-size: 1.3rem;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.badge-chip:hover {
+  transform: scale(1.15);
+  box-shadow: 0 4px 14px var(--shadow);
+}
+
+.lb-badges { font-size: 0.8rem; letter-spacing: 1px; }
+
+/* Badge unlocked toast */
+#badgeToast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--card);
+  border: 1.5px solid var(--cyan);
+  box-shadow: 0 0 24px var(--cyan-glow), 0 8px 28px var(--shadow);
+  border-radius: 16px;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  z-index: 310;
+  animation: pop 0.25s ease-out;
+  min-width: 230px;
+  white-space: nowrap;
+}
+
+.badge-toast-icon { font-size: 2rem; flex-shrink: 0; line-height: 1; }
+
+.badge-toast-title {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--cyan);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 2px;
+}
+
+.badge-toast-name {
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+
+/* =============================================================================
    TOAST NOTIFICATION
    ============================================================================= */
 
