@@ -83,13 +83,16 @@ function applySnapshot(flatMap) {
 export async function loadWeekMatches() {
   if (!state.currentUser) return;
   try {
-    const snap = await getDocs(
-      query(collection(db, 'matches'), where('uid', '==', state.currentUser.uid))
-    );
+    let snap;
+    if (isStaff()) {
+      snap = await getDocs(query(collection(db, 'matches'), where('weekKey', '==', WEEK_KEY)));
+    } else {
+      snap = await getDocs(query(collection(db, 'matches'), where('uid', '==', state.currentUser.uid)));
+    }
     state.matchCache.clear();
     snap.docs.forEach(d => {
       const m = d.data();
-      if (m.weekKey === WEEK_KEY) state.matchCache.set(m.slotKey, { id: d.id, ...m });
+      if (isStaff() || m.weekKey === WEEK_KEY) state.matchCache.set(m.slotKey, { id: d.id, ...m });
     });
     render();
   } catch (err) {
@@ -251,20 +254,21 @@ function buildSlots(court) {
 
     let stateClass, actionText, clickable;
     if (isPast) {
-      if (amIIn) {
-        const logged = state.matchCache.get(`${court}_${state.selectedDay}_${hour}`);
-        if (logged) {
-          const lt   = logged.type;
-          stateClass = lt === 'competitive'
-            ? (logged.won ? 'past-result win-logged' : 'past-result loss-logged')
-            : 'past-result friendly-logged';
-          actionText = lt === 'competitive'
-            ? (logged.won ? '✓ Win' : '✗ Loss')
-            : '🤝 Friendly';
-        } else {
-          stateClass = 'past-result';
-          actionText = 'Log Match';
-        }
+      const logged = state.matchCache.get(`${court}_${state.selectedDay}_${hour}`);
+      if (logged && (amIIn || isStaff())) {
+        const lt   = logged.type;
+        stateClass = lt === 'competitive'
+          ? (logged.won ? 'past-result win-logged' : 'past-result loss-logged')
+          : 'past-result friendly-logged';
+        actionText = lt === 'competitive'
+          ? (logged.won ? '✓ Win' : '✗ Loss')
+          : '🤝 Friendly';
+          
+        if (!amIIn && isStaff()) actionText = '⚙ Edit'; 
+        clickable = true;
+      } else if (amIIn) {
+        stateClass = 'past-result';
+        actionText = 'Log Match';
         clickable = true;
       } else {
         stateClass = 'past';
@@ -307,12 +311,13 @@ function buildSlots(court) {
     `;
 
     if (clickable) {
-      if (isPast && amIIn) {
+      if (isPast) {
         const logged = state.matchCache.get(`${court}_${state.selectedDay}_${hour}`);
-        slot.addEventListener('click', () => {
-          if (logged) openMatchDetailModal(logged);
-          else openMatchLogModal(court, state.selectedDay, hour);
-        });
+        if (logged && (amIIn || isStaff())) {
+          slot.addEventListener('click', () => openMatchDetailModal(logged));
+        } else if (amIIn) {
+          slot.addEventListener('click', () => openMatchLogModal(court, state.selectedDay, hour));
+        }
       } else if (isOpen) {
         slot.addEventListener('click', () => openReserveModal(court, state.selectedDay, hour));
       } else if (amIIn) {
@@ -470,7 +475,6 @@ export function openManageSlotModal(court, dayIdx, hour) {
     const res     = getRes(court, dayIdx, hour);
     const players = normalizeRes(res);
 
-    // Fetch the actual roles for each player in this slot
     const playersWithRoles = await Promise.all(players.map(async p => {
       if (p.uid === state.currentUser?.uid) return { ...p, role: myRole };
       try {

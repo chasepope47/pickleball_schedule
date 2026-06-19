@@ -1,5 +1,5 @@
 import {
-  db, doc, addDoc, updateDoc, collection, serverTimestamp, increment, deleteField,
+  db, doc, addDoc, updateDoc, collection, serverTimestamp, increment, deleteField, getDoc
 } from './firebase.js';
 import { state } from './state.js';
 import { DAY_NAMES } from './constants.js';
@@ -279,20 +279,30 @@ export function openMatchDetailModal(match) {
         const comment = document.getElementById('editMatchComment').value.trim();
         const newWon  = matchResult === 'win';
 
+        // Fetch original match owner's profile to accurately adjust their rating/stats
+        const matchOwnerRef = doc(db, 'players', match.uid);
+        const matchOwnerSnap = await getDoc(matchOwnerRef);
+        const matchOwnerProfile = matchOwnerSnap.exists() ? matchOwnerSnap.data() : null;
+
+        if (!matchOwnerProfile) {
+          showToast('Original player not found. Cannot update stats.', 'error');
+          return;
+        }
+
         const profileUpdates = {};
         const oldComp = match.type === 'competitive';
         const newComp = matchType === 'competitive';
 
         if (oldComp && !newComp) {
           profileUpdates[match.won ? 'wins' : 'losses'] = increment(-1);
-          profileUpdates.rating = adjustRating(state.currentProfile.rating, !match.won);
+          profileUpdates.rating = adjustRating(matchOwnerProfile.rating, !match.won);
         } else if (!oldComp && newComp) {
           profileUpdates[newWon ? 'wins' : 'losses'] = increment(1);
-          profileUpdates.rating = adjustRating(state.currentProfile.rating, newWon);
+          profileUpdates.rating = adjustRating(matchOwnerProfile.rating, newWon);
         } else if (oldComp && newComp && match.won !== newWon) {
           profileUpdates[match.won ? 'wins' : 'losses'] = increment(-1);
           profileUpdates[newWon   ? 'wins' : 'losses']  = increment(1);
-          profileUpdates.rating = adjustRating(adjustRating(state.currentProfile.rating, !match.won), newWon);
+          profileUpdates.rating = adjustRating(adjustRating(matchOwnerProfile.rating, !match.won), newWon);
         }
 
         try {
@@ -306,9 +316,13 @@ export function openMatchDetailModal(match) {
           await updateDoc(doc(db, 'matches', match.id), updatedFields);
 
           if (Object.keys(profileUpdates).length > 0) {
-            await updateDoc(doc(db, 'players', state.currentUser.uid), profileUpdates);
-            const fresh = await loadFirestoreProfile(state.currentUser.uid);
-            if (fresh) { state.currentProfile = fresh; applyProfileToHeader(fresh); }
+            await updateDoc(matchOwnerRef, profileUpdates);
+            
+            // Only update local UI cache if the current user owns the match
+            if (match.uid === state.currentUser.uid) {
+              const fresh = await loadFirestoreProfile(state.currentUser.uid);
+              if (fresh) { state.currentProfile = fresh; applyProfileToHeader(fresh); }
+            }
             refreshDeptSection(); // fire-and-forget
           }
 

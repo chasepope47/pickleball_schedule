@@ -1,13 +1,14 @@
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getAuth, createUserWithEmailAndPassword } from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import {
-  db, doc, setDoc, updateDoc, getDocs, deleteDoc, collection, serverTimestamp,
+  db, doc, setDoc, updateDoc, getDocs, getDoc, deleteDoc, collection, serverTimestamp,
   signOut, FIREBASE_CONFIG,
 } from './firebase.js';
 import { state } from './state.js';
 import { setModal, closeModal, makeBtn, showToast } from './ui.js';
 import { getInitials, ratingOptions } from './utils.js';
 import { renderAdminDeptContent } from './departments.js';
+import { BADGES } from './constants.js';
 
 // ── Secondary Firebase app (creates users without signing out the current user) ─
 
@@ -116,12 +117,13 @@ async function _loadUsers() {
         const p = players.find(u => u.uid === btn.dataset.uid);
         if (!p) return;
         switch (btn.dataset.action) {
-          case 'block':     return _confirmBlock(p, true);
-          case 'unblock':   return _confirmBlock(p, false);
-          case 'delete':    return _confirmDelete(p);
-          case 'makeadmin': return _confirmRole(p, 'admin');
-          case 'makemgr':   return _confirmRole(p, 'manager');
-          case 'setuser':   return _confirmRole(p, 'user');
+          case 'block':      return _confirmBlock(p, true);
+          case 'unblock':    return _confirmBlock(p, false);
+          case 'delete':     return _confirmDelete(p);
+          case 'makeadmin':  return _confirmRole(p, 'admin');
+          case 'makemgr':    return _confirmRole(p, 'manager');
+          case 'setuser':    return _confirmRole(p, 'user');
+          case 'edit-stats': return _openEditStatsModal(p);
         }
       });
     });
@@ -161,6 +163,8 @@ function _userRowHtml(p) {
     // Manager looking at an admin — read-only
     actions = '<span class="admin-protected">🔒</span>';
   } else {
+    const editStatsBtn = _mkBtn('Edit Stats', 'edit-stats', 'edit-stats', p.uid);
+
     const blockBtn = isBlocked
       ? _mkBtn('Unblock',  'unblock', 'unblock', p.uid)
       : _mkBtn('Block',    'block',   'block',   p.uid);
@@ -178,7 +182,7 @@ function _userRowHtml(p) {
     }
 
     const deleteBtn = _mkBtn('Remove', 'delete', 'delete', p.uid);
-    actions = blockBtn + roleBtn + deleteBtn;
+    actions = editStatsBtn + blockBtn + roleBtn + deleteBtn;
   }
 
   return `
@@ -296,6 +300,70 @@ function _confirmRole(player, newRole) {
       ),
     ],
   });
+  document.querySelector('.modal').classList.add('modal-wide');
+}
+
+// ── Edit Stats Modal ──────────────────────────────────────────────────────────
+
+function _openEditStatsModal(player) {
+  // Generate checkboxes for all available badges
+  const badgeHtml = Object.entries(BADGES).map(([id, b]) => `
+    <label style="display:flex; align-items:center; gap:8px; margin-bottom:6px; cursor:pointer;">
+      <input type="checkbox" class="admin-badge-cb" value="${id}" ${(player.badges || []).includes(id) ? 'checked' : ''} />
+      <span>${b.icon} ${b.name}</span>
+    </label>
+  `).join('');
+
+  setModal({
+    title: 'Edit Player Stats',
+    sub: `${player.firstName} ${player.lastName}`,
+    body: `
+      <div class="form-row">
+        <div class="form-group">
+          <label>Rating</label>
+          <input type="number" id="adminEditRating" step="0.1" value="${player.rating || 3.0}" />
+        </div>
+        <div class="form-group">
+          <label>Wins</label>
+          <input type="number" id="adminEditWins" value="${player.wins || 0}" />
+        </div>
+        <div class="form-group">
+          <label>Losses</label>
+          <input type="number" id="adminEditLosses" value="${player.losses || 0}" />
+        </div>
+      </div>
+      <div class="form-group" style="margin-top:12px">
+        <label>Awarded Badges</label>
+        <div style="background:var(--card); padding:10px; border:1px solid var(--border); border-radius:8px; max-height: 160px; overflow-y: auto;">
+          ${badgeHtml || '<span style="font-size:0.8rem; color:var(--text-muted)">No badges configured.</span>'}
+        </div>
+      </div>
+    `,
+    actions: [
+      makeBtn('Cancel', 'btn-secondary', _reopenWide),
+      makeBtn('Save Stats', 'btn-primary', async () => {
+         const newRating = parseFloat(document.getElementById('adminEditRating').value) || 3.0;
+         const newWins   = parseInt(document.getElementById('adminEditWins').value) || 0;
+         const newLosses = parseInt(document.getElementById('adminEditLosses').value) || 0;
+         const newBadges = Array.from(document.querySelectorAll('.admin-badge-cb:checked')).map(cb => cb.value);
+
+         try {
+            await updateDoc(doc(db, 'players', player.uid), {
+              rating: newRating,
+              wins: newWins,
+              losses: newLosses,
+              badges: newBadges
+            });
+            showToast(`Stats updated for ${player.firstName}.`);
+            _reopenWide(); 
+         } catch (err) {
+            console.error(err);
+            showToast('Could not update stats.', 'error');
+         }
+      })
+    ]
+  });
+  
   document.querySelector('.modal').classList.add('modal-wide');
 }
 
