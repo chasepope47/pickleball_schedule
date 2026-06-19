@@ -9,6 +9,7 @@ import { setModal, closeModal, makeBtn, showToast } from './ui.js';
 import { getInitials, ratingOptions } from './utils.js';
 import { renderAdminDeptContent } from './departments.js';
 import { BADGES } from './constants.js';
+import { setRes } from './schedule.js';
 
 // ── Secondary Firebase app (creates users without signing out the current user) ─
 
@@ -23,8 +24,6 @@ function getSecondaryAuth() {
 
 // ── Role helpers ──────────────────────────────────────────────────────────────
 // Hierarchy: admin > manager > user
-// First admin must be bootstrapped manually in Firestore:
-//   players/{uid} → role: "admin", status: "active"
 
 export function isAdmin()   { return state.currentProfile?.role === 'admin';   }
 export function isManager() { return state.currentProfile?.role === 'manager'; }
@@ -33,10 +32,9 @@ export function isManager() { return state.currentProfile?.role === 'manager'; }
 function canManageUsers() { return isAdmin() || isManager(); }
 
 // Whether the current viewer can act on a target player
-// Managers cannot touch admins or grant the admin role
 function canActOn(targetRole) {
-  if (isAdmin()) return true;             // admins can act on anyone
-  return targetRole !== 'admin';          // managers cannot act on admins
+  if (isAdmin()) return true;             
+  return targetRole !== 'admin';          
 }
 
 // ── Admin button ──────────────────────────────────────────────────────────────
@@ -66,6 +64,7 @@ function _renderShell() {
     <div class="admin-tabs" id="adminTabs">
       <button class="admin-tab active" data-view="users">Users</button>
       <button class="admin-tab"        data-view="departments">Departments</button>
+      <button class="admin-tab"        data-view="tournaments">🏆 Tournaments</button>
       <button class="admin-tab"        data-view="create">+ Create Account</button>
     </div>
     <div id="adminContent"></div>
@@ -81,6 +80,7 @@ function _renderShell() {
       t.classList.toggle('active', t.dataset.view === _activeView));
     if (_activeView === 'users') _loadUsers();
     else if (_activeView === 'departments') renderAdminDeptContent(document.getElementById('adminContent'));
+    else if (_activeView === 'tournaments') _renderTournamentsForm();
     else _renderCreateForm();
   });
 
@@ -111,7 +111,6 @@ async function _loadUsers() {
     content.innerHTML =
       `<div class="admin-user-list">${players.map(_userRowHtml).join('')}</div>`;
 
-    // Wire all action buttons in one pass
     content.querySelectorAll('[data-action]').forEach(btn => {
       btn.addEventListener('click', () => {
         const p = players.find(u => u.uid === btn.dataset.uid);
@@ -160,18 +159,13 @@ function _userRowHtml(p) {
   if (isMe) {
     actions = '<span class="admin-you">(you)</span>';
   } else if (!canActOn(targetRole)) {
-    // Manager looking at an admin — read-only
     actions = '<span class="admin-protected">🔒</span>';
   } else {
     const editStatsBtn = _mkBtn('Edit Stats', 'edit-stats', 'edit-stats', p.uid);
-
-    const blockBtn = isBlocked
-      ? _mkBtn('Unblock',  'unblock', 'unblock', p.uid)
-      : _mkBtn('Block',    'block',   'block',   p.uid);
+    const blockBtn = isBlocked ? _mkBtn('Unblock', 'unblock', 'unblock', p.uid) : _mkBtn('Block', 'block', 'block', p.uid);
 
     let roleBtn = '';
     if (targetRole === 'admin') {
-      // Only reachable by other admins (canActOn guard above)
       roleBtn = _mkBtn('Revoke Admin', 'demote', 'setuser', p.uid);
     } else if (targetRole === 'manager') {
       roleBtn = _mkBtn('Revoke Manager', 'demote', 'setuser', p.uid);
@@ -200,10 +194,7 @@ function _userRowHtml(p) {
 
 // ── Confirmation modals ───────────────────────────────────────────────────────
 
-function _reopenWide() {
-  openAdminPanel();
-  // openAdminPanel re-renders the shell which adds modal-wide
-}
+function _reopenWide() { openAdminPanel(); }
 
 function _confirmBlock(player, blocking) {
   setModal({
@@ -221,9 +212,7 @@ function _confirmBlock(player, blocking) {
         blocking ? 'btn-danger'  : 'btn-primary',
         async () => {
           try {
-            await updateDoc(doc(db, 'players', player.uid), {
-              status: blocking ? 'blocked' : 'active',
-            });
+            await updateDoc(doc(db, 'players', player.uid), { status: blocking ? 'blocked' : 'active' });
             showToast(`${player.firstName} ${blocking ? 'blocked' : 'unblocked'}.`);
             _reopenWide();
           } catch (err) {
@@ -244,7 +233,6 @@ function _confirmDelete(player) {
     body: `
       <p style="font-size:.88rem;color:var(--text-dim);margin-bottom:10px">
         This removes <strong>${player.firstName} ${player.lastName}</strong>'s profile and data.
-        They will not be able to sign in until an account is created for them again.
       </p>
       <p style="font-size:.8rem;color:var(--red)">This cannot be undone.</p>
     `,
@@ -269,8 +257,7 @@ const ROLE_LABELS = { admin: 'Admin', manager: 'Manager', user: 'User' };
 
 function _confirmRole(player, newRole) {
   const current = player.role || 'user';
-  const isUpgrade = (newRole === 'admin') ||
-    (newRole === 'manager' && current === 'user');
+  const isUpgrade = (newRole === 'admin') || (newRole === 'manager' && current === 'user');
 
   setModal({
     title: `Change Role → ${ROLE_LABELS[newRole]}`,
@@ -284,13 +271,10 @@ function _confirmRole(player, newRole) {
     </p>`,
     actions: [
       makeBtn('Cancel', 'btn-secondary', _reopenWide),
-      makeBtn(
-        `Set as ${ROLE_LABELS[newRole]}`,
-        isUpgrade ? 'btn-primary' : 'btn-danger',
-        async () => {
+      makeBtn(`Set as ${ROLE_LABELS[newRole]}`, isUpgrade ? 'btn-primary' : 'btn-danger', async () => {
           try {
             await updateDoc(doc(db, 'players', player.uid), { role: newRole });
-            showToast(`${player.firstName} is now ${newRole === 'admin' ? 'an Admin' : newRole === 'manager' ? 'a Manager' : 'a User'}.`);
+            showToast(`${player.firstName} is now ${ROLE_LABELS[newRole]}.`);
             _reopenWide();
           } catch (err) {
             console.error(err);
@@ -306,7 +290,6 @@ function _confirmRole(player, newRole) {
 // ── Edit Stats Modal ──────────────────────────────────────────────────────────
 
 function _openEditStatsModal(player) {
-  // Generate checkboxes for all available badges
   const badgeHtml = Object.entries(BADGES).map(([id, b]) => `
     <label style="display:flex; align-items:center; gap:8px; margin-bottom:6px; cursor:pointer;">
       <input type="checkbox" class="admin-badge-cb" value="${id}" ${(player.badges || []).includes(id) ? 'checked' : ''} />
@@ -438,7 +421,6 @@ async function _submitCreate() {
   passEl.classList.toggle('error', password.length < 6);
   if (!firstName || !lastName || !email || password.length < 6) return;
 
-  // Managers cannot assign the admin role — guard against DOM tampering
   const role = document.getElementById('newRole').value;
   if (role === 'admin' && !isAdmin()) {
     showToast('Only admins can create admin accounts.', 'error');
@@ -462,7 +444,7 @@ async function _submitCreate() {
       createdAt: serverTimestamp(),
     });
 
-    await signOut(secAuth); // close the secondary session
+    await signOut(secAuth); 
 
     const tempPass = password;
     const content  = document.getElementById('adminContent');
@@ -489,5 +471,113 @@ async function _submitCreate() {
       ? 'An account with this email already exists.'
       : `Error: ${err.message}`;
     errorEl.classList.remove('hidden');
+  }
+}
+
+// ── Tournaments View ──────────────────────────────────────────────────────────
+
+async function _renderTournamentsForm() {
+  const content = document.getElementById('adminContent');
+  if (!content) return;
+  content.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:20px 0">Loading Roster…</p>';
+
+  try {
+    const snap = await getDocs(collection(db, 'players'));
+    const players = snap.docs.map(d => ({ uid: d.id, ...d.data() })).filter(p => p.status !== 'blocked');
+
+    content.innerHTML = `
+      <div style="padding-top:8px">
+        <p style="font-size:.85rem;color:var(--text-dim);margin-bottom:14px">
+          Schedule a tournament. This will automatically block public access to the selected courts.
+        </p>
+        <div class="form-group">
+          <label>Tournament Name</label>
+          <input type="text" id="tName" placeholder="e.g., SafeStreets Summer Classic" />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Court</label>
+            <select id="tCourt"><option value="1">Court 1</option><option value="2">Court 2</option></select>
+          </div>
+          <div class="form-group">
+            <label>Day</label>
+            <select id="tDay">
+              <option value="0">Monday</option><option value="1">Tuesday</option>
+              <option value="2">Wednesday</option><option value="3">Thursday</option>
+              <option value="4">Friday</option><option value="5">Saturday</option>
+              <option value="6">Sunday</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Start Hour</label>
+            <select id="tStart">${[6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21].map(h => `<option value="${h}">${h > 12 ? h-12 : h} ${h >= 12 ? 'PM' : 'AM'}</option>`).join('')}</select>
+          </div>
+          <div class="form-group">
+            <label>End Hour</label>
+            <select id="tEnd">${[7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22].map(h => `<option value="${h}">${h > 12 ? h-12 : h} ${h >= 12 ? 'PM' : 'AM'}</option>`).join('')}</select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Tournament Roster (Select Players)</label>
+          <div style="background:var(--card); padding:10px; border:1px solid var(--border); border-radius:8px; max-height: 150px; overflow-y: auto;">
+            ${players.map(p => `
+              <label style="display:flex; align-items:center; gap:8px; margin-bottom:6px; cursor:pointer;">
+                <input type="checkbox" class="t-player-cb" value="${p.uid}" data-name="${p.firstName} ${p.lastName}" />
+                <span>${p.firstName} ${p.lastName}</span>
+              </label>`).join('')}
+          </div>
+        </div>
+        <button class="btn btn-primary btn-full" id="doTournamentBtn" style="margin-top:12px;">Lock Schedule</button>
+      </div>
+    `;
+
+    document.getElementById('doTournamentBtn').addEventListener('click', async () => {
+      const name = document.getElementById('tName').value.trim();
+      const court = parseInt(document.getElementById('tCourt').value);
+      const dayIdx = parseInt(document.getElementById('tDay').value);
+      const startHour = parseInt(document.getElementById('tStart').value);
+      const endHour = parseInt(document.getElementById('tEnd').value);
+
+      if (!name) return showToast('Please provide a tournament name.', 'error');
+      if (startHour >= endHour) return showToast('End time must be after start time.', 'error');
+
+      const selected = Array.from(document.querySelectorAll('.t-player-cb:checked')).map(cb => ({
+        uid: cb.value,
+        name: cb.dataset.name
+      }));
+
+      if (selected.length === 0) return showToast('Please select at least one player.', 'error');
+
+      const btn = document.getElementById('doTournamentBtn');
+      btn.disabled = true;
+      btn.textContent = 'Locking Schedule...';
+
+      try {
+        // Loop through the selected hours and lock the slots
+        for (let h = startHour; h < endHour; h++) {
+          await setRes(court, dayIdx, h, {
+            isTournament: true,
+            tournamentName: name,
+            players: selected.map(s => ({ uid: s.uid, firstName: s.name.split(' ')[0], lastName: s.name.split(' ')[1] || '' })),
+            maxPlayers: selected.length, // Setting maxPlayers equal to the roster count prevents the public from joining
+            createdBy: state.currentUser.uid
+          });
+        }
+
+        showToast(`Schedule locked for ${name}.`);
+        closeModal();
+      } catch (err) {
+        console.error('Failed to lock schedule:', err);
+        showToast('Failed to lock schedule. Check connection.', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Lock Schedule';
+      }
+    });
+
+  } catch (err) {
+    console.error(err);
+    content.innerHTML = '<p style="text-align:center;color:var(--red);padding:20px 0">Could not load roster.</p>';
   }
 }
