@@ -208,7 +208,7 @@ function _drawEarth(canvas) {
   land(() => {
     ctx.moveTo(px(-116),py(32));
     ctx.bezierCurveTo(px(-108),py(30),px(-100),py(26),px(-104),py(20));
-    ctx.bezierCurveTo(px(-108),py(16),px(-116),py(18),ctx.lineTo(px(-118),py(26)));
+    ctx.bezierCurveTo(px(-108),py(16),px(-116),py(18),px(-118),py(26));
     ctx.bezierCurveTo(px(-118),py(29),px(-117),py(31),px(-116),py(32));
   }, '#b89050');
 
@@ -216,7 +216,8 @@ function _drawEarth(canvas) {
   land(() => {
     ctx.moveTo(px(-50),py(76));
     ctx.bezierCurveTo(px(-28),py(82),px(-16),py(75),px(-20),py(65));
-    ctx.bezierCurveTo(px(-30),py(60),px(-46),py(62),ctx.bezierCurveTo(px(-54),py(68),px(-52),py(74),px(-50),py(76)));
+    ctx.bezierCurveTo(px(-30),py(60),px(-46),py(62),px(-54),py(68));
+    ctx.bezierCurveTo(px(-52),py(74),px(-50),py(76),px(-50),py(76));
   }, '#ccdae8');
 
   // Central America
@@ -234,7 +235,8 @@ function _drawEarth(canvas) {
     ctx.bezierCurveTo(px(-34),py(-13),px(-36),py(-24),px(-44),py(-32));
     ctx.bezierCurveTo(px(-52),py(-42),px(-56),py(-52),px(-52),py(-56));
     ctx.bezierCurveTo(px(-64),py(-53),px(-68),py(-46),px(-65),py(-38));
-    ctx.bezierCurveTo(px(-70),py(-30),px(-76),py(-20),ctx.bezierCurveTo(px(-79),py(-8),px(-78),py(4),px(-76),py(10)));
+    ctx.bezierCurveTo(px(-70),py(-30),px(-76),py(-20),px(-79),py(-8));
+    ctx.bezierCurveTo(px(-78),py(4),px(-76),py(10),px(-76),py(10));
   }, '#4e8c44');
 
   // Amazon basin
@@ -249,7 +251,8 @@ function _drawEarth(canvas) {
   land(() => {
     ctx.moveTo(px(-79),py(9));
     ctx.bezierCurveTo(px(-77),py(0),px(-77),py(-16),px(-76),py(-30));
-    ctx.bezierCurveTo(px(-74),py(-23),px(-73),py(-11),ctx.bezierCurveTo(px(-75),py(-1),px(-77),py(6),px(-79),py(9)));
+    ctx.bezierCurveTo(px(-74),py(-23),px(-73),py(-11),px(-75),py(-1));
+    ctx.bezierCurveTo(px(-77),py(6),px(-79),py(9),px(-79),py(9));
   }, '#8a7042');
 
   // Europe
@@ -261,7 +264,8 @@ function _drawEarth(canvas) {
     ctx.bezierCurveTo(px(-7),py(41),px(-11),py(36),px(-9),py(32));
     ctx.bezierCurveTo(px(-6),py(28),px(-2),py(26),px(0), py(22));
     ctx.bezierCurveTo(px(-8),py(24),px(-14),py(35),px(-16),py(44));
-    ctx.bezierCurveTo(px(-16),py(52),ctx.bezierCurveTo(px(-13),py(57),px(-10),py(58)));
+    ctx.bezierCurveTo(px(-16),py(52),px(-14),py(55),px(-13),py(57));
+    ctx.bezierCurveTo(px(-12),py(58),px(-10),py(58),px(-10),py(58));
   }, '#5e9452');
 
   // Iberian Peninsula
@@ -276,7 +280,8 @@ function _drawEarth(canvas) {
   land(() => {
     ctx.moveTo(px(5), py(58));
     ctx.bezierCurveTo(px(14),py(64),px(22),py(70),px(26),py(68));
-    ctx.bezierCurveTo(px(28),py(62),px(22),py(56),ctx.bezierCurveTo(px(14),py(54),px(7), py(54),px(5),py(58)));
+    ctx.bezierCurveTo(px(28),py(62),px(22),py(56),px(14),py(54));
+    ctx.bezierCurveTo(px(7),py(54),px(5),py(58),px(5),py(58));
   }, '#5a9050');
 
   // Africa
@@ -297,14 +302,16 @@ function _drawEarth(canvas) {
     ctx.bezierCurveTo(px(2), py(32),px(20),py(30),px(30),py(24));
     ctx.bezierCurveTo(px(34),py(18),px(30),py(10),px(22),py(9));
     ctx.bezierCurveTo(px(10),py(9), px(0), py(13),px(-8),py(18));
-    ctx.bezierCurveTo(px(-14),py(22),ctx.bezierCurveTo(px(-16),py(27),px(-14),py(30)));
+    ctx.bezierCurveTo(px(-14),py(22),px(-15),py(25),px(-16),py(27));
+    ctx.bezierCurveTo(px(-16),py(28),px(-14),py(30),px(-14),py(30));
   }, '#c8a050');
 
   // Congo / Central Africa rainforest
   land(() => {
     ctx.moveTo(px(10),py(4));
     ctx.bezierCurveTo(px(26),py(8),px(36),py(2),px(34),py(-8));
-    ctx.bezierCurveTo(px(28),py(-14),px(14),py(-10),ctx.bezierCurveTo(px(6),py(-4),px(7),py(2),px(10),py(4)));
+    ctx.bezierCurveTo(px(28),py(-14),px(14),py(-10),px(6),py(-4));
+    ctx.bezierCurveTo(px(7),py(2),px(10),py(4),px(10),py(4));
   }, '#246020');
 
   // Madagascar
@@ -508,9 +515,7 @@ export function initLoader() {
   const moonCanvas = document.getElementById('moonCanvas');
   if (moonCanvas) _drawMoon(moonCanvas);
 
-  // Draw realistic Earth on background canvas
-  const earthCanvas = document.getElementById('earthCanvas');
-  if (earthCanvas) _drawEarth(earthCanvas);
+  // Earth comes from the background photo — no canvas needed
 }
 
 export function showLoader() {
@@ -521,7 +526,6 @@ export function hideLoader() {
   const loader = document.getElementById('appLoader');
   if (loader) loader.classList.add('hidden');
   setTimeout(() => {
-    const ec = document.getElementById('earthCanvas');
-    if (ec) ec.classList.add('visible');
-  }, 500);
+    document.getElementById('spaceBg')?.classList.add('photo-visible');
+  }, 400);
 }

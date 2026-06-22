@@ -106,7 +106,7 @@
   75%  { content: '...'; }
 }
 
-/* ── Persistent space background ── */
+/* ── Persistent space background (photo) ── */
 .space-bg {
   position: fixed;
   inset: 0;
@@ -118,28 +118,39 @@
 
 [data-theme="light"] .space-bg { display: none; }
 
+/* Photo layer */
+.space-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url('../moon-bg.jpg') center center / cover no-repeat;
+  opacity: 0;
+  transition: opacity 1.6s ease;
+  filter: brightness(0.45) saturate(1.15) contrast(1.08);
+}
+
+.space-bg.photo-visible::before { opacity: 1; }
+
+/* Vignette overlay — darkens edges so UI content pops */
+.space-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 80% at 50% 50%,
+      transparent 30%,
+      rgba(4, 6, 14, 0.55) 70%,
+      rgba(4, 6, 14, 0.88) 100%
+    );
+  pointer-events: none;
+}
+
+/* Twinkling stars (sparse — photo has its own sky) */
 .space-star {
   position: absolute;
   border-radius: 50%;
   background: #fff;
 }
 
-/* ── Earth (canvas) ── */
-.space-earth-canvas {
-  position: fixed;
-  bottom: -300px;
-  right: -200px;
-  width: 660px;
-  height: 660px;
-  border-radius: 50%;
-  z-index: -1;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 1.4s ease 0.3s;
-  filter: drop-shadow(0 0 55px rgba(70, 140, 220, 0.32))
-          drop-shadow(0 0 120px rgba(70, 140, 220, 0.14));
-}
-
-.space-earth-canvas.visible { opacity: 0.90; }
-
-[data-theme="light"] .space-earth-canvas { display: none; }
+/* Earth canvas no longer needed — photo has Earth */
+.space-earth-canvas { display: none; }

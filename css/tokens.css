@@ -4,9 +4,9 @@
 
 :root {
   --bg:            transparent;
-  --card:          rgba(14, 16, 26, 0.82);
-  --panel:         rgba(22, 25, 38, 0.85);
-  --hover:         rgba(30, 34, 50, 0.88);
+  --card:          rgba(8, 10, 20, 0.72);
+  --panel:         rgba(12, 15, 28, 0.78);
+  --hover:         rgba(20, 24, 42, 0.82);
   --cyan:          #00d4e8;
   --cyan-dim:      #00a8bc;
   --cyan-glow:     rgba(0, 212, 232, 0.35);
