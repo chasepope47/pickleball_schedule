@@ -2,6 +2,16 @@
    TIME SLOTS
    ============================================================================= */
 
+@keyframes slot-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes open-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  50%       { box-shadow: 0 0 14px 3px var(--cyan-glow); }
+}
+
 .slot {
   border-radius: 8px;
   border: 1px solid var(--border);
@@ -10,8 +20,9 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
-  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s, opacity 0.15s;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s, opacity 0.2s, transform 0.15s;
   user-select: none;
+  animation: slot-in 0.28s ease both;
 }
 
 .slot-row1 {
@@ -100,10 +111,13 @@
   background: var(--cyan-bg);
   border-color: var(--cyan-border);
   cursor: pointer;
+  animation: slot-in 0.28s ease both, open-pulse 2.8s ease-in-out 0.6s infinite;
 }
 .slot.open:hover {
   border-color: var(--cyan);
-  box-shadow: 0 0 10px var(--cyan-glow);
+  box-shadow: 0 0 16px var(--cyan-glow);
+  transform: translateY(-2px);
+  animation: slot-in 0.28s ease both;
 }
 .slot.open .slot-time  { color: var(--cyan); }
 .slot.open .slot-action { background: var(--cyan); color: #000; }
@@ -115,7 +129,8 @@
 }
 .slot.joinable:hover {
   border-color: var(--cyan);
-  box-shadow: 0 0 10px var(--cyan-glow);
+  box-shadow: 0 0 14px var(--cyan-glow);
+  transform: translateY(-2px);
 }
 .slot.joinable .slot-action { background: var(--cyan); color: #000; }
 
@@ -126,7 +141,8 @@
 }
 .slot.mine:hover {
   border-color: var(--orange);
-  box-shadow: 0 0 8px rgba(255,152,0,0.2);
+  box-shadow: 0 0 12px rgba(255,152,0,0.3);
+  transform: translateY(-2px);
 }
 .slot.mine .slot-time   { color: var(--orange); }
 .slot.mine .slot-action { background: var(--orange); color: #000; }

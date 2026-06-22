@@ -108,17 +108,22 @@ footer {
   cursor: pointer;
   text-align: center;
   color: var(--text-dim);
-  transition: border-color 0.15s, background 0.15s, color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.18s, background 0.18s, color 0.18s, box-shadow 0.18s, transform 0.15s;
 }
 
-.day-tab:hover { border-color: var(--cyan); color: var(--text); }
+.day-tab:hover {
+  border-color: var(--cyan);
+  color: var(--text);
+  transform: translateY(-2px);
+}
 
 .day-tab.active {
   background: var(--cyan);
   border-color: var(--cyan);
   color: #000;
   font-weight: 700;
-  box-shadow: 0 0 12px var(--cyan-glow);
+  box-shadow: 0 0 16px var(--cyan-glow);
+  transform: translateY(-1px);
 }
 
 .day-tab.today-tab:not(.active) { border-color: var(--cyan-dim); color: var(--cyan); }
@@ -164,6 +169,13 @@ footer {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 20px;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.courts-grid.switching {
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
 }
 
 @media (max-width: 700px) { .courts-grid { grid-template-columns: 1fr; } }

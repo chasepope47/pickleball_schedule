@@ -345,8 +345,10 @@ function buildSlots(court) {
       chips.push(`<span class="player-chip empty-spot">+ Open</span>`);
     }
 
+    const slotIndex = HOURS.indexOf(hour);
     const slot = document.createElement('div');
     slot.className = `slot ${stateClass}`;
+    slot.style.animationDelay = `${slotIndex * 0.035}s`;
     slot.innerHTML = `
       <div class="slot-row1">
         <span class="slot-time">${slotLabel(hour)}</span>
@@ -394,8 +396,18 @@ function buildSlots(court) {
 export function render() {
   if (!state.currentUser) return;
   buildDayTabs();
-  buildSlots(1);
-  buildSlots(2);
+  const grid = document.querySelector('.courts-grid');
+  if (grid) {
+    grid.classList.add('switching');
+    setTimeout(() => {
+      buildSlots(1);
+      buildSlots(2);
+      grid.classList.remove('switching');
+    }, 150);
+  } else {
+    buildSlots(1);
+    buildSlots(2);
+  }
 }
 
 // ── Reservation modals ───────────────────────────────────────────────────────
