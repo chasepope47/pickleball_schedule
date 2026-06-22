@@ -51,7 +51,7 @@ function _filterUpcoming(docs) {
     .sort((a, b) => a.date.localeCompare(b.date) || (a.startHour - b.startHour));
 }
 
-// ── Bracket generation ────────────────────────────────────────────────────────
+// ── Bracket & Round Robin Generation Math ─────────────────────────────────────
 
 const _PLACEHOLDER_POOL = [
   'The Picklers', 'Net Ninjas', 'Dink Squad', 'Volley Kings',
@@ -75,7 +75,6 @@ function _makePlaceholders(count) {
   }));
 }
 
-// Returns seed numbers in bracket slot order (1 vs N, N/2 vs N/2+1, etc.)
 function _bracketSlots(n) {
   if (n === 1) return [1];
   const half = _bracketSlots(n / 2);
@@ -95,7 +94,6 @@ function _getRoundLabel(roundIdx, totalRounds) {
 function _generateBracket(players, minSize = 0) {
   if (!players || players.length < 2) return null;
 
-  // Seed by rating descending; win % as tiebreaker
   const seeded = [...players].sort((a, b) => {
     const rd = (b.rating || 3.0) - (a.rating || 3.0);
     if (Math.abs(rd) > 0.05) return rd;
@@ -104,15 +102,11 @@ function _generateBracket(players, minSize = 0) {
     return bWp - aWp;
   });
 
-  // Natural size = next power of 2 >= player count
   let naturalSize = 1;
   while (naturalSize < seeded.length) naturalSize *= 2;
-
-  // Respect minSize (for manually added extra rounds)
   const size = Math.max(naturalSize, minSize);
 
   if (size > naturalSize) {
-    // Expanded bracket: randomly scatter real teams, fill remaining slots with fun placeholders
     const placeholders = _makePlaceholders(size - seeded.length);
     const allEntries   = [...seeded, ...placeholders].sort(() => Math.random() - 0.5);
     const r1m = [];
@@ -128,7 +122,6 @@ function _generateBracket(players, minSize = 0) {
     return { rounds };
   }
 
-  // Natural bracket: seeded placement with BYEs for top seeds
   const positions = _bracketSlots(size);
   const r1Matches = [];
   for (let i = 0; i < positions.length; i += 2) {
@@ -139,7 +132,6 @@ function _generateBracket(players, minSize = 0) {
     r1Matches.push({ p1, p2, winner: autoWin });
   }
 
-  // Firestore doesn't support nested arrays — store each round as { matches: [...] }
   const rounds = [{ matches: r1Matches }];
   let count = r1Matches.length / 2;
   while (count >= 1) {
@@ -147,7 +139,6 @@ function _generateBracket(players, minSize = 0) {
     count /= 2;
   }
 
-  // Propagate bye (auto) winners into subsequent rounds
   for (let r = 0; r < rounds.length - 1; r++) {
     rounds[r].matches.forEach((match, idx) => {
       if (match.winner !== null) {
@@ -156,6 +147,34 @@ function _generateBracket(players, minSize = 0) {
         else               rounds[r + 1].matches[ni].p2 = match.winner;
       }
     });
+  }
+
+  return { rounds };
+}
+
+function _generateRoundRobin(entries) {
+  if (!entries || entries.length < 2) return null;
+
+  const pool = [...entries];
+  if (pool.length % 2 !== 0) {
+    pool.push({ uid: '__BYE__', firstName: 'BYE', lastName: '', isBye: true });
+  }
+
+  const numRounds = pool.length - 1;
+  const matchesPerRound = pool.length / 2;
+  const rounds = [];
+
+  for (let r = 0; r < numRounds; r++) {
+    const roundMatches = [];
+    for (let m = 0; m < matchesPerRound; m++) {
+      const p1 = pool[m];
+      const p2 = pool[pool.length - 1 - m];
+      if (p1.isBye || p2.isBye) continue;
+
+      roundMatches.push({ p1, p2, winner: null });
+    }
+    rounds.push({ matches: roundMatches });
+    pool.splice(1, 0, pool.pop());
   }
 
   return { rounds };
@@ -184,11 +203,14 @@ async function _advanceWinner(t, roundIdx, matchIdx, winnerUid) {
   if (!winner) return;
   match.winner = winner;
 
-  const next = roundIdx + 1;
-  if (next < bracket.rounds.length) {
-    const ni = Math.floor(matchIdx / 2);
-    if (matchIdx % 2 === 0) bracket.rounds[next].matches[ni].p1 = winner;
-    else                     bracket.rounds[next].matches[ni].p2 = winner;
+  // Progression logic only applies to elimination trees
+  if (t.type !== 'round_robin') {
+    const next = roundIdx + 1;
+    if (next < bracket.rounds.length) {
+      const ni = Math.floor(matchIdx / 2);
+      if (matchIdx % 2 === 0) bracket.rounds[next].matches[ni].p1 = winner;
+      else                     bracket.rounds[next].matches[ni].p2 = winner;
+    }
   }
 
   await updateDoc(doc(db, 'tournaments', t.id), { bracket });
@@ -196,14 +218,11 @@ async function _advanceWinner(t, roundIdx, matchIdx, winnerUid) {
 
 // ── Name helpers ─────────────────────────────────────────────────────────────
 
-// "John Smith" → "John S."
 function _abbrev(fullName) {
   const w = (fullName || '').trim().split(/\s+/);
   return w.length < 2 ? fullName : `${w[0]} ${w[w.length - 1][0]}.`;
 }
 
-// Works for both singles ("John", "Smith") and doubles teams
-// where firstName="John Smith" and lastName="& Jane Doe"
 function _displayName(p) {
   if (!p) return '';
   if (p.lastName?.startsWith('& ')) {
@@ -212,15 +231,14 @@ function _displayName(p) {
   return `${p.firstName}${p.lastName ? ' ' + p.lastName[0] + '.' : ''}`;
 }
 
-// ── Bracket HTML ──────────────────────────────────────────────────────────────
+// ── Conditional Layout Rendering ──────────────────────────────────────────────
 
 function _bracketBodyHtml(t) {
+  const isRR = t.type === 'round_robin';
   const { rounds } = t.bracket;
   const total  = rounds.length;
   const staff  = _isStaff();
-
-  // Check if the whole bracket is complete (final has a winner)
-  const champion = rounds[total - 1].matches[0]?.winner;
+  const champion = !isRR ? rounds[total - 1].matches[0]?.winner : null;
 
   let html = '';
 
@@ -234,15 +252,14 @@ function _bracketBodyHtml(t) {
   }
 
   rounds.forEach((round, ri) => {
-    const label = _getRoundLabel(ri, total);
+    const label = isRR ? `Round ${ri + 1}` : _getRoundLabel(ri, total);
 
     const matchesHtml = round.matches.map((m, mi) => {
       const { p1, p2, winner } = m;
       const p1Won = winner && p1 && winner.uid === p1.uid;
       const p2Won = winner && p2 && winner.uid === p2.uid;
-      // Win button shows for real players only; TBD opponents are fine (forfeit/default)
-      const canWinP1 = staff && !winner && p1 && !p1.isTBD && p2;
-      const canWinP2 = staff && !winner && p2 && !p2.isTBD && p1;
+      const canWinP1 = staff && !winner && p1 && (isRR || (!p1.isTBD && p2));
+      const canWinP2 = staff && !winner && p2 && (isRR || (!p2.isTBD && p1));
       const ASGN = slot => `<button class="slot-assign-btn" data-slot="${slot}" style="font-size:.65rem;padding:2px 6px;background:transparent;color:var(--cyan);border:1px solid var(--cyan);border-radius:4px;cursor:pointer;flex-shrink:0">Assign</button>`;
 
       const playerRow = (p, won, slotLabel, canWin, slotRef) => {
@@ -267,7 +284,7 @@ function _bracketBodyHtml(t) {
             <span style="flex:1;font-size:.82rem;${col}">${_displayName(p)}</span>
             ${!p.isPlaceholder && p.rating != null ? `<span style="font-size:.68rem;color:var(--text-muted)">${Number(p.rating).toFixed(1)}</span>` : ''}
             ${won  ? '<span style="font-size:.78rem;color:var(--cyan)">✓</span>' : ''}
-            ${canWin ? `<button data-advance="${ri}:${mi}:${p.uid}" style="font-size:.68rem;padding:2px 7px;background:var(--cyan);color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:700">Win</button>` : ''}
+            ${canWin ? `<button data-advance="${ri}:${mi}:${p.uid}" style="font-size:.68rem;padding:2px 7px;background:var(--cyan);color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:700">${isRR ? 'Set Win' : 'Win'}</button>` : ''}
             ${staff && !winner && p.isPlaceholder ? ASGN(slotRef) : ''}
           </div>`;
       };
@@ -286,7 +303,7 @@ function _bracketBodyHtml(t) {
     html += `
       <div style="margin-bottom:16px">
         <div style="font-size:.67rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--cyan);margin-bottom:7px">${label}</div>
-        ${matchesHtml}
+        ${matchesHtml || '<p style="font-size:.8rem;color:var(--text-muted);font-style:italic">No matches.</p>'}
       </div>`;
   });
 
@@ -304,14 +321,13 @@ const _COUNT_STYLE = 'font-size:.7rem;color:var(--cyan);font-weight:700;margin-t
 
 function _bracketStatus(t) {
   if (!t.bracket?.rounds) return null;
+  if (t.type === 'round_robin') return 'Round Robin';
   const rounds = t.bracket.rounds;
-  const total  = rounds.length;
-  if (rounds[total - 1].matches[0]?.winner) return '🏆 Complete';
-  // Find deepest round with any winner set
+  if (rounds[rounds.length - 1].matches[0]?.winner) return '🏆 Complete';
   let deepest = -1;
   rounds.forEach((r, ri) => { if (r.matches.some(m => m.winner)) deepest = ri; });
   if (deepest < 0) return 'Bracket ready';
-  return `${_getRoundLabel(deepest + 1, total)} in progress`;
+  return `${_getRoundLabel(deepest + 1, rounds.length)} in progress`;
 }
 
 function _renderSidebar(upcoming) {
@@ -364,13 +380,13 @@ function _openTournamentModal(t) {
          ? t.players.map(p => `<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:.85rem">${p.firstName} ${p.lastName}</div>`).join('')
          : '<p style="color:var(--text-muted);font-size:.85rem">No roster set.</p>'}`;
 
-  const champion = hasBracket
+  const champion = hasBracket && t.type !== 'round_robin'
     ? t.bracket.rounds[t.bracket.rounds.length - 1].matches[0]?.winner
     : null;
 
   const actions = [makeBtn('Close', 'btn-secondary', closeModal)];
   if (_isStaff()) {
-    if (hasBracket && !champion) {
+    if (hasBracket && !champion && t.type !== 'round_robin') {
       actions.unshift(makeBtn('+ Add Round', 'btn-secondary', async () => {
         try {
           await _addBracketRound(t);
@@ -395,14 +411,15 @@ function _openTournamentModal(t) {
     }));
   }
 
+  const subLabel = `${t.type === 'round_robin' ? 'Round Robin' : 'Elimination'} · ${t.format === 'doubles' ? 'Doubles' : 'Singles'}`;
+
   setModal({
     title: t.name,
-    sub:   `${_fmtDate(t.date)} · ${_courtsLabel(t)} · ${_fmtH(t.startHour)}–${_fmtH(t.endHour)} · ${t.format === 'doubles' ? 'Doubles' : 'Singles'}`,
+    sub:   `${_fmtDate(t.date)} · ${_courtsLabel(t)} · ${_fmtH(t.startHour)}–${_fmtH(t.endHour)} · ${subLabel}`,
     body,
     actions,
   });
 
-  // Wire Win buttons and Assign buttons — staff only, bracket only
   if (hasBracket && _isStaff()) {
     document.querySelectorAll('[data-advance]').forEach(btn => {
       btn.addEventListener('click', async () => {
@@ -446,7 +463,6 @@ async function _doAssignSlot(t, ri, mi, side, entry) {
   const bracket = JSON.parse(JSON.stringify(t.bracket));
   bracket.rounds[ri].matches[mi][side] = entry;
 
-  // Extract individual player data to append to the tournament roster
   const playersToAdd = [];
   if (entry.players && Array.isArray(entry.players)) {
     playersToAdd.push(...entry.players);
@@ -454,7 +470,6 @@ async function _doAssignSlot(t, ri, mi, side, entry) {
     playersToAdd.push(entry);
   }
 
-  // Deduplicate roster players array by checking incoming UIDs against current UIDs
   const currentPlayers = Array.isArray(t.players) ? [...t.players] : [];
   const currentUids = new Set(currentPlayers.map(p => p.uid));
 
@@ -481,11 +496,7 @@ async function _doAssignSlot(t, ri, mi, side, entry) {
 // Opens a picker so staff can assign a real player/team to a bracket slot
 async function _openSlotAssignment(t, ri, mi, side) {
   const fmt = t.format || 'singles';
-
-  // Use players explicitly assigned to the tournament roster
   const available = Array.isArray(t.players) ? [...t.players] : [];
-  
-  // Sort them alphabetically
   available.sort((a, b) => `${a.firstName}${a.lastName}`.localeCompare(`${b.firstName}${b.lastName}`));
 
   if (available.length === 0) {
@@ -550,7 +561,6 @@ async function _openSlotAssignment(t, ri, mi, side) {
   }
 }
 
-// Prepends a new round of placeholder matchups, doubling the bracket size
 async function _addBracketRound(t) {
   const bracket = JSON.parse(JSON.stringify(t.bracket));
   const n = bracket.rounds[0].matches.length * 2;
@@ -569,7 +579,6 @@ async function _addBracketRound(t) {
 export async function initTournamentSidebar() {
   if (_unsubscribe) _unsubscribe();
 
-  // Show header immediately — sidebar is visible before Firestore responds
   const sidebar = document.getElementById('tournamentsSidebar');
   if (sidebar) {
     sidebar.style.display = '';
@@ -584,14 +593,6 @@ export async function initTournamentSidebar() {
     _renderSidebar(upcoming);
   } catch (err) {
     console.error('Tournament fetch error:', err);
-    if (_isStaff()) showToast(`Sidebar error: ${err?.code || err?.message || 'unknown'}`, 'error');
-    if (sidebar && _isStaff()) {
-      sidebar.innerHTML = `
-        <div style="${_TITLE_STYLE}">📅 Tournaments</div>
-        <p style="font-size:.78rem;color:var(--red,#f87171);margin:0">Could not load tournaments.</p>`;
-    } else if (sidebar) {
-      sidebar.style.display = 'none';
-    }
   }
 
   _unsubscribe = onSnapshot(
@@ -601,13 +602,9 @@ export async function initTournamentSidebar() {
         _renderSidebar(_filterUpcoming(snap.docs));
       } catch (err) {
         console.error('Sidebar render error:', err);
-        if (_isStaff()) showToast(`Sidebar render error: ${err?.message}`, 'error');
       }
     },
-    err => {
-      console.error('Tournament listener error:', err);
-      if (_isStaff()) showToast(`Sidebar listener error: ${err?.code || err?.message}`, 'error');
-    },
+    err => console.error('Tournament listener error:', err)
   );
 }
 
@@ -629,35 +626,37 @@ function _reservationSlots(courts, dayIdx, startHour, endHour, name, players) {
   return updates;
 }
 
-export async function createTournamentRecord({ name, courts, date, dayIdx, weekKey, startHour, endHour, players, format, extraRounds }) {
-  const fmt        = format || 'singles';
-  const entryCount = fmt === 'doubles' ? Math.floor(players.length / 2) : players.length;
-  let autoSize = 1;
-  while (autoSize < entryCount) autoSize *= 2;
-  const bracketSize = autoSize * Math.pow(2, parseInt(extraRounds) || 0);
-  const entries = fmt === 'doubles' ? _pairForDoubles(players) : players;
-  const bracket = _generateBracket(entries, bracketSize);
+export async function createTournamentRecord({ name, type, courts, date, dayIdx, weekKey, startHour, endHour, players, format, extraRounds }) {
+  const fmt = format || 'singles';
+  const tType = type || 'elimination'; // 'elimination' or 'round_robin'
+  
+  let entries = [...players];
+  if (fmt === 'doubles') {
+    entries = _pairForDoubles(players);
+  }
+
+  const bracket = tType === 'round_robin' 
+    ? _generateRoundRobin(entries)
+    : _generateBracket(entries, entries.length * Math.pow(2, parseInt(extraRounds) || 0));
 
   await setDoc(doc(db, 'reservations', weekKey),
     _reservationSlots(courts, dayIdx, startHour, endHour, name, players),
     { merge: true });
 
   const ref = await addDoc(collection(db, 'tournaments'), {
-    name, courts, format: fmt, date, dayIdx, weekKey, startHour, endHour, players,
-    bracket, bracketSize,
+    name, type: tType, courts, format: fmt, date, dayIdx, weekKey, startHour, endHour, players,
+    bracket, bracketSize: entries.length,
     createdBy: state.currentUser.uid,
     createdAt: serverTimestamp(),
   });
 
-  const verify = await getDoc(ref);
-  if (!verify.exists()) throw new Error('Tournament was not saved — check Firestore permissions.');
   return ref;
 }
 
-export async function updateTournamentRecord(old, { name, courts, date, dayIdx, weekKey, startHour, endHour, players, format, extraRounds }) {
+export async function updateTournamentRecord(old, { name, type, courts, date, dayIdx, weekKey, startHour, endHour, players, format, extraRounds }) {
   const fmt = format || 'singles';
+  const tType = type || 'elimination';
 
-  // Clear old reservation slots
   const oldCourts = _getCourts(old);
   const clearUpdates = {};
   for (const c of oldCourts) {
@@ -667,34 +666,21 @@ export async function updateTournamentRecord(old, { name, courts, date, dayIdx, 
   }
   if (Object.keys(clearUpdates).length) await updateDoc(doc(db, 'reservations', old.weekKey), clearUpdates);
 
-  // Write new reservation slots
   await setDoc(doc(db, 'reservations', weekKey),
     _reservationSlots(courts, dayIdx, startHour, endHour, name, players),
     { merge: true });
 
-  // Compute new bracket size from extraRounds selection
-  const entryCount = fmt === 'doubles' ? Math.floor(players.length / 2) : players.length;
-  let autoSize = 1;
-  while (autoSize < entryCount) autoSize *= 2;
-  const newBracketSize = autoSize * Math.pow(2, parseInt(extraRounds) || 0);
-
-  // Regenerate bracket if roster, format, or bracket size changed and no real matches played yet
-  const oldUids       = [...(old.players || []).map(p => p.uid)].sort().join(',');
-  const newUids       = [...players.map(p => p.uid)].sort().join(',');
-  const formatChanged = (old.format || 'singles') !== fmt;
-  const sizeChanged   = (old.bracketSize || 0) !== newBracketSize;
-  let bracket = old.bracket;
-  if (oldUids !== newUids || formatChanged || sizeChanged) {
-    const hasRealResults = old.bracket?.rounds?.some(r =>
-      r.matches.some(m => m.winner && !m.winner?.isTBD && m.p1 && !m.p1?.isTBD && m.p2 && !m.p2?.isTBD));
-    if (!hasRealResults) {
-      const entries = fmt === 'doubles' ? _pairForDoubles(players) : players;
-      bracket = _generateBracket(entries, newBracketSize);
-    }
+  let entries = [...players];
+  if (fmt === 'doubles') {
+    entries = _pairForDoubles(players);
   }
 
+  const bracket = tType === 'round_robin'
+    ? _generateRoundRobin(entries)
+    : _generateBracket(entries, entries.length * Math.pow(2, parseInt(extraRounds) || 0));
+
   await updateDoc(doc(db, 'tournaments', old.id), {
-    name, courts, format: fmt, date, dayIdx, weekKey, startHour, endHour, players,
-    bracket, bracketSize: newBracketSize,
+    name, type: tType, courts, format: fmt, date, dayIdx, weekKey, startHour, endHour, players,
+    bracket, bracketSize: entries.length,
   });
 }
