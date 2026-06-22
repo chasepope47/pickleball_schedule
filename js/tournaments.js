@@ -445,7 +445,35 @@ async function _cancelTournament(t) {
 async function _doAssignSlot(t, ri, mi, side, entry) {
   const bracket = JSON.parse(JSON.stringify(t.bracket));
   bracket.rounds[ri].matches[mi][side] = entry;
-  await updateDoc(doc(db, 'tournaments', t.id), { bracket });
+
+  // Extract individual player data to append to the tournament roster
+  const playersToAdd = [];
+  if (entry.players && Array.isArray(entry.players)) {
+    playersToAdd.push(...entry.players);
+  } else if (entry.uid && !entry.uid.includes('__')) {
+    playersToAdd.push(entry);
+  }
+
+  // Deduplicate roster players array by checking incoming UIDs against current UIDs
+  const currentPlayers = Array.isArray(t.players) ? [...t.players] : [];
+  const currentUids = new Set(currentPlayers.map(p => p.uid));
+
+  playersToAdd.forEach(p => {
+    if (!currentUids.has(p.uid)) {
+      currentPlayers.push({
+        uid: p.uid,
+        firstName: p.firstName,
+        lastName: p.lastName,
+        rating: p.rating || null
+      });
+    }
+  });
+
+  await updateDoc(doc(db, 'tournaments', t.id), { 
+    bracket,
+    players: currentPlayers 
+  });
+
   const snap = await getDoc(doc(db, 'tournaments', t.id));
   if (snap.exists()) _openTournamentModal({ id: t.id, ...snap.data() });
 }
