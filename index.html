@@ -60,7 +60,15 @@
 
   <div class="schedule-layout" style="display:flex;gap:24px;align-items:flex-start;max-width:1400px;margin:0 auto;padding:0 20px">
 
-    <aside class="schedule-sidebar" id="tournamentsSidebar" style="width:220px;flex-shrink:0;padding-top:28px"></aside>
+    <div style="display:flex;flex-direction:column;gap:20px;width:220px;flex-shrink:0;padding-top:28px">
+      <aside class="schedule-sidebar" id="tournamentsSidebar"></aside>
+      <section class="dept-section" id="deptSection" style="display:none">
+        <div class="dept-section-header">
+          <h3 class="dept-section-title">🏢 Department Standings</h3>
+        </div>
+        <div id="deptStandings"></div>
+      </section>
+    </div>
 
     <main class="schedule-main" style="flex:1;min-width:0;max-width:900px;margin:0;padding:28px 0">
       <div class="week-bar">
@@ -95,12 +103,6 @@
         </div>
       </div>
 
-      <section class="dept-section" id="deptSection" style="display:none">
-        <div class="dept-section-header">
-          <h3 class="dept-section-title">🏢 Department Standings</h3>
-        </div>
-        <div id="deptStandings"></div>
-      </section>
     </main>
   </div>
 
