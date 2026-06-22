@@ -6,7 +6,7 @@ import { state } from './state.js';
 import { COURTS, HOURS, MAX_PLAYERS, DAY_NAMES, DAY_SHORT } from './constants.js';
 import { dayDate, slotDateTime, fmtHour, slotLabel, getInitials, WEEK_MONDAY, WEEK_KEY } from './utils.js';
 import { setModal, closeModal, makeBtn, showToast } from './ui.js';
-import { requireWaiver } from './profile.js';
+import { requireWaiver, applyProfileToHeader } from './profile.js';
 import { openMatchLogModal, openMatchDetailModal } from './matches.js';
 
 const weekDocRef = doc(db, 'reservations', WEEK_KEY);
@@ -14,6 +14,38 @@ const weekDocRef = doc(db, 'reservations', WEEK_KEY);
 function isStaff() {
   const r = state.currentProfile?.role;
   return r === 'admin' || r === 'manager';
+}
+
+// ── Streak ───────────────────────────────────────────────────────────────────
+
+async function _updateStreak() {
+  const profile = state.currentProfile;
+  if (!profile || !state.currentUser) return;
+
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+  // Already got credit today — nothing to do
+  if (profile.lastPlayedDate === todayStr) return;
+
+  let newStreak;
+  if (!profile.lastPlayedDate) {
+    newStreak = 1;
+  } else {
+    const [ly, lm, ld] = profile.lastPlayedDate.split('-').map(Number);
+    const gapDays = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(ly, lm - 1, ld)) / 864e5);
+    newStreak = gapDays <= 3 ? (profile.streak || 0) + 1 : 1;
+  }
+
+  profile.streak         = newStreak;
+  profile.lastPlayedDate = todayStr;
+  applyProfileToHeader(profile);
+
+  try {
+    await updateDoc(doc(db, 'players', state.currentUser.uid), { streak: newStreak, lastPlayedDate: todayStr });
+  } catch (err) {
+    console.error('Streak update failed:', err);
+  }
 }
 
 // ── Reservation helpers ──────────────────────────────────────────────────────
@@ -386,6 +418,7 @@ export function openReserveModal(court, dayIdx, hour) {
         await setRes(court, dayIdx, hour, resObj);
         scheduleNotif(court, dayIdx, hour, resObj);
         showToast(`Court ${court} reserved for ${profile.firstName}!`);
+        _updateStreak();
       }),
     ],
   });
@@ -426,6 +459,7 @@ export function openJoinModal(court, dayIdx, hour, currentPlayers) {
         await setRes(court, dayIdx, hour, newRes);
         scheduleNotif(court, dayIdx, hour, newRes);
         showToast(`Joined! Court ${court} on ${DAY_NAMES[dayIdx]}.`);
+        _updateStreak();
       }),
     ],
   });

@@ -4,6 +4,15 @@ import { BADGES } from './constants.js';
 import { getInitials } from './utils.js';
 import { setModal, closeModal, makeBtn } from './ui.js';
 
+function _activeStreakFor(p) {
+  if (!(p.streak > 0) || !p.lastPlayedDate) return 0;
+  const [y, m, d] = p.lastPlayedDate.split('-').map(Number);
+  const last  = new Date(y, m - 1, d);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const gap   = Math.floor((today - last) / 864e5);
+  return gap <= 3 ? p.streak : 0;
+}
+
 export async function openLeaderboard() {
   setModal({
     title: '🏆 Leaderboard',
@@ -39,12 +48,13 @@ export async function openLeaderboard() {
         ? `<img src="${p.photoUrl}" alt="" />`
         : getInitials(p.firstName, p.lastName);
       const badgePips = (p.badges || []).slice(0, 3).map(id => BADGES[id]?.icon || '').join('');
+      const streak    = _activeStreakFor(p);
       return `
         <div class="leaderboard-row ${isMe ? 'me' : ''}">
           <span class="lb-rank">${medal}</span>
           <div class="lb-avatar ${p.photoUrl ? 'has-photo' : ''}">${avatar}</div>
           <div class="lb-info">
-            <span class="lb-name">${p.firstName} ${p.lastName}${isMe ? ' (you)' : ''}${badgePips ? ` <span class="lb-badges">${badgePips}</span>` : ''}</span>
+            <span class="lb-name">${p.firstName} ${p.lastName}${isMe ? ' (you)' : ''}${badgePips ? ` <span class="lb-badges">${badgePips}</span>` : ''}${streak > 0 ? ` <span title="${streak}-session streak" style="font-size:.85rem">🔥${streak}</span>` : ''}</span>
             <span class="lb-rating">★ ${p.rating || '—'}</span>
           </div>
           <div class="lb-record">

@@ -19,11 +19,20 @@ export function getInitialsForProfile(p) {
   return getInitials(p.firstName, p.lastName);
 }
 
+function _activeStreak(profile) {
+  if (!(profile.streak > 0) || !profile.lastPlayedDate) return 0;
+  const [y, m, d] = profile.lastPlayedDate.split('-').map(Number);
+  const last  = new Date(y, m - 1, d);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const gap   = Math.floor((today - last) / 864e5);
+  return gap <= 3 ? profile.streak : 0;
+}
+
 export function applyProfileToHeader(profile) {
   const avatar = document.getElementById('userAvatar');
-  
-  let innerHTML = profile.photoUrl 
-    ? `<img src="${profile.photoUrl}" alt="" />` 
+
+  let innerHTML = profile.photoUrl
+    ? `<img src="${profile.photoUrl}" alt="" />`
     : getInitials(profile.firstName, profile.lastName);
 
   // Appends the department badge if the user has opted in and the dept has an icon
@@ -31,11 +40,21 @@ export function applyProfileToHeader(profile) {
   if (profile.showDeptBadge && deptIcon) {
     innerHTML += `<div class="dept-avatar-badge">${deptIcon}</div>`;
   }
-  
+
   // Ensures the absolute positioned badge anchors correctly to the avatar
   avatar.style.position = 'relative';
   avatar.innerHTML = innerHTML;
-  document.getElementById('userNameLabel').textContent = `${profile.firstName} ${profile.lastName}`;
+
+  const nameEl = document.getElementById('userNameLabel');
+  const streak = _activeStreak(profile);
+  nameEl.textContent = `${profile.firstName} ${profile.lastName}`;
+  if (streak > 0) {
+    const badge = document.createElement('span');
+    badge.title = `${streak}-session streak`;
+    badge.style.cssText = 'margin-left:5px;font-size:.78rem';
+    badge.textContent = `🔥${streak}`;
+    nameEl.appendChild(badge);
+  }
 }
 
 export async function loadFirestoreProfile(uid) {
