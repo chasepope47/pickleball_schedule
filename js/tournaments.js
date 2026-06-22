@@ -78,30 +78,30 @@ function _generateBracket(players) {
   const positions = _bracketSlots(size);
 
   // Build round 1 — null players are byes (top seeds get byes)
-  const r1 = [];
+  const r1Matches = [];
   for (let i = 0; i < positions.length; i += 2) {
     const s1 = positions[i], s2 = positions[i + 1];
     const p1 = s1 <= seeded.length ? { ...seeded[s1 - 1], seed: s1 } : null;
     const p2 = s2 <= seeded.length ? { ...seeded[s2 - 1], seed: s2 } : null;
     const autoWin = p1 === null ? p2 : (p2 === null ? p1 : null);
-    r1.push({ p1, p2, winner: autoWin });
+    r1Matches.push({ p1, p2, winner: autoWin });
   }
 
-  // Build empty future rounds
-  const rounds = [r1];
-  let count = r1.length / 2;
+  // Firestore doesn't support nested arrays — store each round as { matches: [...] }
+  const rounds = [{ matches: r1Matches }];
+  let count = r1Matches.length / 2;
   while (count >= 1) {
-    rounds.push(Array.from({ length: count }, () => ({ p1: null, p2: null, winner: null })));
+    rounds.push({ matches: Array.from({ length: count }, () => ({ p1: null, p2: null, winner: null })) });
     count /= 2;
   }
 
   // Propagate bye (auto) winners into subsequent rounds
   for (let r = 0; r < rounds.length - 1; r++) {
-    rounds[r].forEach((match, idx) => {
+    rounds[r].matches.forEach((match, idx) => {
       if (match.winner !== null) {
         const ni = Math.floor(idx / 2);
-        if (idx % 2 === 0) rounds[r + 1][ni].p1 = match.winner;
-        else               rounds[r + 1][ni].p2 = match.winner;
+        if (idx % 2 === 0) rounds[r + 1].matches[ni].p1 = match.winner;
+        else               rounds[r + 1].matches[ni].p2 = match.winner;
       }
     });
   }
@@ -111,7 +111,7 @@ function _generateBracket(players) {
 
 async function _advanceWinner(t, roundIdx, matchIdx, winnerUid) {
   const bracket = JSON.parse(JSON.stringify(t.bracket));
-  const match = bracket.rounds[roundIdx][matchIdx];
+  const match = bracket.rounds[roundIdx].matches[matchIdx];
   const winner = match.p1?.uid === winnerUid ? match.p1 : match.p2;
   if (!winner) return;
   match.winner = winner;
@@ -119,8 +119,8 @@ async function _advanceWinner(t, roundIdx, matchIdx, winnerUid) {
   const next = roundIdx + 1;
   if (next < bracket.rounds.length) {
     const ni = Math.floor(matchIdx / 2);
-    if (matchIdx % 2 === 0) bracket.rounds[next][ni].p1 = winner;
-    else                     bracket.rounds[next][ni].p2 = winner;
+    if (matchIdx % 2 === 0) bracket.rounds[next].matches[ni].p1 = winner;
+    else                     bracket.rounds[next].matches[ni].p2 = winner;
   }
 
   await updateDoc(doc(db, 'tournaments', t.id), { bracket });
@@ -134,7 +134,7 @@ function _bracketBodyHtml(t) {
   const staff  = _isStaff();
 
   // Check if the whole bracket is complete (final has a winner)
-  const champion = rounds[total - 1][0]?.winner;
+  const champion = rounds[total - 1].matches[0]?.winner;
 
   let html = '';
 
@@ -147,10 +147,10 @@ function _bracketBodyHtml(t) {
       </div>`;
   }
 
-  rounds.forEach((matches, ri) => {
+  rounds.forEach((round, ri) => {
     const label = _getRoundLabel(ri, total);
 
-    const matchesHtml = matches.map((m, mi) => {
+    const matchesHtml = round.matches.map((m, mi) => {
       const { p1, p2, winner } = m;
       const p1Won = winner && p1 && winner.uid === p1.uid;
       const p2Won = winner && p2 && winner.uid === p2.uid;
@@ -208,10 +208,10 @@ function _bracketStatus(t) {
   if (!t.bracket?.rounds) return null;
   const rounds = t.bracket.rounds;
   const total  = rounds.length;
-  if (rounds[total - 1][0]?.winner) return '🏆 Complete';
+  if (rounds[total - 1].matches[0]?.winner) return '🏆 Complete';
   // Find deepest round with any winner set
   let deepest = -1;
-  rounds.forEach((r, ri) => { if (r.some(m => m.winner)) deepest = ri; });
+  rounds.forEach((r, ri) => { if (r.matches.some(m => m.winner)) deepest = ri; });
   if (deepest < 0) return 'Bracket ready';
   return `${_getRoundLabel(deepest + 1, total)} in progress`;
 }

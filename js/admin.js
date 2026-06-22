@@ -647,7 +647,10 @@ async function _renderTournamentsForm() {
         _renderTournamentsForm();
       } catch (err) {
         console.error('Failed to lock schedule:', err);
-        showToast('Failed to lock schedule. Check connection.', 'error');
+        const detail = err?.code === 'permission-denied'
+          ? 'Permission denied — check Firestore rules.'
+          : (err?.message || 'Check connection.');
+        showToast(`Failed to lock schedule: ${detail}`, 'error');
         btn.disabled = false;
         btn.textContent = 'Lock Schedule';
       }
