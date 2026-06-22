@@ -83,7 +83,7 @@ function _renderSection() {
       <div class="dept-row ${isMe ? 'dept-mine' : ''}" data-dept="${dept.id}" role="button" tabindex="0">
         <div class="dept-rank">${medal}</div>
         <div class="dept-info">
-          <div class="dept-name">${dept.icon ? `${dept.icon} ` : ''}${dept.name}${isMe ? ' <span class="dept-you-tag">you</span>' : ''}</div>
+          <div class="dept-name">${dept.icon ? `${dept.icon} ` : ''}${dept.name}</div>
           <div class="dept-meta">${dept.members.length} member${dept.members.length !== 1 ? 's' : ''}</div>
         </div>
         <div class="dept-record">
