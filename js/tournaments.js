@@ -482,38 +482,14 @@ async function _doAssignSlot(t, ri, mi, side, entry) {
 async function _openSlotAssignment(t, ri, mi, side) {
   const fmt = t.format || 'singles';
 
-  // Collect all individual UIDs already placed in any round
-  const assignedUids = new Set();
-  t.bracket.rounds.forEach(round => {
-    round.matches.forEach(m => {
-      [m.p1, m.p2, m.winner].forEach(p => {
-        if (!p || p.isTBD || p.isPlaceholder) return;
-        if (p.uid.startsWith('__')) return;
-        if (fmt === 'doubles') {
-          (p.players || []).forEach(pl => assignedUids.add(pl.uid));
-          if (!p.players) p.uid.split('__').filter(Boolean).forEach(u => assignedUids.add(u));
-        } else {
-          assignedUids.add(p.uid);
-        }
-      });
-    });
-  });
-
-  // Show all system players not yet placed — assigning one also adds them to the roster
-  let available;
-  try {
-    const snap = await getDocs(collection(db, 'players'));
-    available = snap.docs
-      .map(d => ({ uid: d.id, ...d.data() }))
-      .filter(p => p.status !== 'blocked' && !assignedUids.has(p.uid))
-      .sort((a, b) => `${a.firstName}${a.lastName}`.localeCompare(`${b.firstName}${b.lastName}`));
-  } catch (err) {
-    showToast('Could not load players.', 'error');
-    return;
-  }
+  // Use players explicitly assigned to the tournament roster
+  const available = Array.isArray(t.players) ? [...t.players] : [];
+  
+  // Sort them alphabetically
+  available.sort((a, b) => `${a.firstName}${a.lastName}`.localeCompare(`${b.firstName}${b.lastName}`));
 
   if (available.length === 0) {
-    showToast('Every player is already placed in the bracket.', 'error');
+    showToast('There are no players assigned to this tournament roster.', 'error');
     return;
   }
 
