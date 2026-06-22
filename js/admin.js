@@ -23,15 +23,12 @@ function getSecondaryAuth() {
 }
 
 // ── Role helpers ──────────────────────────────────────────────────────────────
-// Hierarchy: admin > manager > user
 
 export function isAdmin()   { return state.currentProfile?.role === 'admin';   }
 export function isManager() { return state.currentProfile?.role === 'manager'; }
 
-// True for both admins and managers — gates the ⚙️ button
 function canManageUsers() { return isAdmin() || isManager(); }
 
-// Whether the current viewer can act on a target player
 function canActOn(targetRole) {
   if (isAdmin()) return true;             
   return targetRole !== 'admin';          
@@ -198,8 +195,8 @@ function _reopenWide() { openAdminPanel(); }
 
 function _confirmBlock(player, blocking) {
   setModal({
-    title: blocking ? 'Block User' : 'Unblock User',
-    sub:   `${player.firstName} ${player.lastName}`,
+    title: player ? (blocking ? 'Block User' : 'Unblock User') : '',
+    sub:   player ? `${player.firstName} ${player.lastName}` : '',
     body: `<p style="font-size:.88rem;color:var(--text-dim)">
       ${blocking
         ? `<strong>${player.firstName}</strong> will be unable to access the app and signed out on their next visit.`
@@ -504,7 +501,6 @@ async function _renderTournamentsForm() {
     const courtsLabel = t => { const c = getCourts(t); return c.length > 1 ? `Courts ${c.join(' & ')}` : `Court ${c[0]}`; };
     const courtHoursSelect = (id, vals, sel) => vals.map(h => `<option value="${h}" ${h === sel ? 'selected' : ''}>${fmtH(h)}</option>`).join('');
 
-    // Build the list of existing tournaments (or edit form inline)
     const upcomingHtml = upcoming.length === 0
       ? '<p style="font-size:.82rem;color:var(--text-muted);padding:10px 0">No upcoming tournaments.</p>'
       : upcoming.map(t => {
@@ -526,6 +522,17 @@ async function _renderTournamentsForm() {
                 <div class="form-group">
                   <label>Tournament Name</label>
                   <input type="text" id="editTName" value="${t.name.replace(/"/g, '&quot;')}" />
+                </div>
+                <div class="form-group">
+                  <label>Tournament Style</label>
+                  <div style="display:flex;gap:20px;padding:6px 0">
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem">
+                      <input type="radio" name="editType" value="elimination" ${(t.type || 'elimination') === 'elimination' ? 'checked' : ''}> Single Elimination
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem">
+                      <input type="radio" name="editType" value="round_robin" ${t.type === 'round_robin' ? 'checked' : ''}> Round Robin + Playoffs
+                    </label>
+                  </div>
                 </div>
                 <div class="form-group">
                   <label>Format</label>
@@ -593,11 +600,12 @@ async function _renderTournamentsForm() {
               </div>`;
           }
 
+          const typeLabel = t.type === 'round_robin' ? 'Round Robin' : 'Elimination';
           return `
             <div class="dept-admin-row" style="flex-wrap:wrap;gap:6px">
               <div class="dept-admin-info">
                 <div class="dept-admin-name">${t.name}</div>
-                <div class="dept-admin-meta">${fmtD(t.date)} · ${courtsLabel(t)} · ${fmtH(t.startHour)}–${fmtH(t.endHour)} · ${(t.players || []).length} players</div>
+                <div class="dept-admin-meta">${fmtD(t.date)} · ${courtsLabel(t)} · ${fmtH(t.startHour)}–${fmtH(t.endHour)} · ${typeLabel} · ${(t.players || []).length} players</div>
               </div>
               <div style="display:flex;gap:6px">
                 <button class="admin-btn promote" data-action="edit-tourney" data-id="${t.id}">Edit</button>
@@ -619,6 +627,17 @@ async function _renderTournamentsForm() {
           <div class="form-group">
             <label>Tournament Name</label>
             <input type="text" id="tName" placeholder="e.g., SafeStreets Summer Classic" />
+          </div>
+          <div class="form-group">
+            <label>Tournament Style</label>
+            <div style="display:flex;gap:20px;padding:6px 0">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input type="radio" name="tType" value="elimination" checked> Single Elimination Bracket
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input type="radio" name="tType" value="round_robin"> Round Robin + Playoffs
+              </label>
+            </div>
           </div>
           <div class="form-group">
             <label>Format</label>
@@ -708,6 +727,7 @@ async function _renderTournamentsForm() {
       if (!t) return;
 
       const name        = document.getElementById('editTName').value.trim();
+      const type        = document.querySelector('input[name="editType"]:checked')?.value || 'elimination';
       const dateStr     = document.getElementById('editTDate').value;
       const startHour   = parseInt(document.getElementById('editTStart').value);
       const endHour     = parseInt(document.getElementById('editTEnd').value);
@@ -741,7 +761,7 @@ async function _renderTournamentsForm() {
         });
 
         await updateTournamentRecord(t, {
-          name, courts, format, extraRounds, date: dateStr, dayIdx: targetDayIdx,
+          name, type, courts, format, extraRounds, date: dateStr, dayIdx: targetDayIdx,
           weekKey: targetWeekKey, startHour, endHour, players: rosterPlayers,
         });
 
@@ -784,6 +804,7 @@ async function _renderTournamentsForm() {
     // ── Create tournament ──
     document.getElementById('doTournamentBtn').addEventListener('click', async () => {
       const name        = document.getElementById('tName').value.trim();
+      const type        = document.querySelector('input[name="tType"]:checked')?.value || 'elimination';
       const dateStr     = document.getElementById('tDate').value;
       const startHour   = parseInt(document.getElementById('tStart').value);
       const endHour     = parseInt(document.getElementById('tEnd').value);
@@ -818,7 +839,7 @@ async function _renderTournamentsForm() {
         });
 
         await createTournamentRecord({
-          name, courts, format, extraRounds, date: dateStr, dayIdx: targetDayIdx,
+          name, type, courts, format, extraRounds, date: dateStr, dayIdx: targetDayIdx,
           weekKey: targetWeekKey, startHour, endHour, players: rosterPlayers,
         });
 
