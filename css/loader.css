@@ -1,0 +1,202 @@
+/* =============================================================================
+   SPACE LOADER + BACKGROUND
+   ============================================================================= */
+
+/* ── Loader overlay ── */
+.app-loader {
+  position: fixed;
+  inset: 0;
+  background: #060810;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  transition: opacity 0.8s ease, visibility 0.8s ease;
+}
+
+.app-loader.hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Stars inside the loader */
+.loader-star {
+  position: absolute;
+  background: #fff;
+  border-radius: 50%;
+  animation: twinkle var(--dur, 2.5s) ease-in-out var(--delay, 0s) infinite;
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 1;   transform: scale(1);   }
+  50%       { opacity: 0.1; transform: scale(0.5); }
+}
+
+/* ── Scene ── */
+.loader-scene {
+  position: relative;
+  width: 260px;
+  height: 260px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Moon ── */
+.loader-moon {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%,
+    #f4ecd8 0%,
+    #ddd0ae 28%,
+    #c0aa80 52%,
+    #9e8a60 72%,
+    #7a6644 90%
+  );
+  box-shadow:
+    0 0 40px rgba(240, 220, 160, 0.35),
+    0 0 80px rgba(240, 220, 160, 0.12),
+    inset -18px -12px 36px rgba(0, 0, 0, 0.4);
+  position: relative;
+  z-index: 2;
+}
+
+/* Craters */
+.loader-crater {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%,
+    rgba(0,0,0,0.04),
+    rgba(0,0,0,0.22)
+  );
+  box-shadow:
+    inset 1px 1px 3px rgba(0,0,0,0.35),
+    inset -1px -1px 2px rgba(255,255,255,0.08);
+}
+
+.loader-crater.c1 { width: 24px; height: 24px; top: 22px; left: 28px; }
+.loader-crater.c2 { width: 15px; height: 15px; top: 54px; left: 66px; }
+.loader-crater.c3 { width: 10px; height: 10px; top: 30px; left: 70px; }
+.loader-crater.c4 { width: 8px;  height: 8px;  top: 68px; left: 38px; }
+
+/* ── Rocket orbit ── */
+.loader-orbit-arm {
+  position: absolute;
+  inset: 0;
+  animation: orbit 2.6s linear infinite;
+}
+
+@keyframes orbit {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.loader-rocket {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  font-size: 1.7rem;
+  line-height: 1;
+  /* offset from moon center; keep upright via counter-rotate */
+  animation: rocket-float 2.6s linear infinite;
+  filter: drop-shadow(0 0 10px rgba(0, 210, 255, 0.8));
+}
+
+@keyframes rocket-float {
+  from { transform: translate(105px, -50%) rotate(0deg); }
+  to   { transform: translate(105px, -50%) rotate(-360deg); }
+}
+
+/* ── Loader text ── */
+.loader-text {
+  margin-top: 32px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(180, 210, 255, 0.65);
+}
+
+.loader-dots::after {
+  content: '';
+  animation: dotdot 1.4s steps(4, end) infinite;
+}
+
+@keyframes dotdot {
+  0%   { content: '';    }
+  25%  { content: '.';   }
+  50%  { content: '..';  }
+  75%  { content: '...'; }
+}
+
+/* ── Persistent space background ── */
+.space-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background: #060810;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+[data-theme="light"] .space-bg { display: none; }
+
+.space-star {
+  position: absolute;
+  border-radius: 50%;
+  background: #fff;
+}
+
+/* ── Earth orb ── */
+.space-earth {
+  position: fixed;
+  bottom: -300px;
+  right: -200px;
+  width: 660px;
+  height: 660px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 26% 22%,
+      rgba(255, 255, 255, 0.22) 0%,
+      rgba(255, 255, 255, 0.06) 8%,
+      transparent 15%
+    ),
+    radial-gradient(circle at 32% 30%,
+      #72bfee 0%,
+      #3d94d8 12%,
+      #4aaa68 26%,
+      #2e784c 38%,
+      #6ab6ec 50%,
+      #3a9260 60%,
+      #2a70c0 70%,
+      #1a4898 82%,
+      #0c2e68 92%,
+      #060d1a 100%
+    );
+  box-shadow:
+    0 0 90px rgba(70, 140, 220, 0.28),
+    0 0 180px rgba(70, 140, 220, 0.10),
+    inset -45px -35px 80px rgba(0, 0, 0, 0.55);
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.4s ease 0.3s;
+}
+
+.space-earth.visible { opacity: 0.88; }
+
+[data-theme="light"] .space-earth { display: none; }
+
+/* Subtle atmosphere glow at earth edge */
+.space-earth::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: inset 0 0 30px rgba(100, 180, 255, 0.18);
+  pointer-events: none;
+}

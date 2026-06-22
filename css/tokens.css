@@ -3,10 +3,10 @@
    ============================================================================= */
 
 :root {
-  --bg:            #0a0a0a;
-  --card:          #141414;
-  --panel:         #1c1c1c;
-  --hover:         #222222;
+  --bg:            transparent;
+  --card:          rgba(14, 16, 26, 0.82);
+  --panel:         rgba(22, 25, 38, 0.85);
+  --hover:         rgba(30, 34, 50, 0.88);
   --cyan:          #00d4e8;
   --cyan-dim:      #00a8bc;
   --cyan-glow:     rgba(0, 212, 232, 0.35);
@@ -20,9 +20,9 @@
   --text:          #e8e8e8;
   --text-dim:      #888;
   --text-muted:    #555;
-  --border:        #2a2a2a;
-  --header-bg:     #000000;
-  --court-header:  #000000;
+  --border:        rgba(60, 65, 90, 0.7);
+  --header-bg:     rgba(6, 8, 16, 0.88);
+  --court-header:  rgba(6, 8, 16, 0.9);
   --shadow:        rgba(0, 0, 0, 0.4);
 }
 

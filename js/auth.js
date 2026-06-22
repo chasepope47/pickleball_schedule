@@ -16,6 +16,9 @@ import {
 import { wireAdminBtn } from './admin.js';
 import { refreshDeptSection } from './departments.js';
 import { initTournamentSidebar } from './tournaments.js';
+import { initSpaceBackground, initLoader, showLoader, hideLoader } from './loader.js';
+
+initSpaceBackground();
 
 // ── Auth overlay helpers ─────────────────────────────────────────────────────
 
@@ -112,6 +115,11 @@ onAuthStateChanged(auth, async (user) => {
 
   if (!state.appInitialized) {
     state.appInitialized = true;
+
+    initLoader();
+    showLoader();
+    const minDisplay = new Promise(r => setTimeout(r, 2600));
+
     wireProfilePill();
     wireAdminBtn();
     buildWeekLabels();
@@ -125,7 +133,10 @@ onAuthStateChanged(auth, async (user) => {
     render();
     startSync();
     setInterval(render, 60_000);
-    // Re-apply header after dept icons load so the avatar badge shows
+
+    await minDisplay;
+    hideLoader();
+
     refreshDeptSection().then(() => {
       if (state.currentProfile) applyProfileToHeader(state.currentProfile);
     });

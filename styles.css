@@ -1,6 +1,7 @@
 /* Entry point — imports all feature CSS modules */
 @import url('./css/tokens.css');
 @import url('./css/base.css');
+@import url('./css/loader.css');
 @import url('./css/auth.css');
 @import url('./css/header.css');
 @import url('./css/layout.css');

@@ -8,6 +8,26 @@
 </head>
 <body>
 
+  <!-- Space background (always behind everything) -->
+  <div class="space-bg" id="spaceBg"></div>
+  <div class="space-earth" id="spaceEarth"></div>
+
+  <!-- Rocket loader (shown on first app load) -->
+  <div class="app-loader hidden" id="appLoader">
+    <div class="loader-scene">
+      <div class="loader-orbit-arm">
+        <span class="loader-rocket">🚀</span>
+      </div>
+      <div class="loader-moon">
+        <div class="loader-crater c1"></div>
+        <div class="loader-crater c2"></div>
+        <div class="loader-crater c3"></div>
+        <div class="loader-crater c4"></div>
+      </div>
+    </div>
+    <p class="loader-text">Loading courts<span class="loader-dots"></span></p>
+  </div>
+
   <div class="welcome-overlay hidden" id="welcomeOverlay">
     <div class="auth-card">
 
