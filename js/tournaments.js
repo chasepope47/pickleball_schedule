@@ -327,17 +327,33 @@ async function _cancelTournament(t) {
 export async function initTournamentSidebar() {
   if (_unsubscribe) _unsubscribe();
 
+  // Show the header immediately so the sidebar is visible while Firestore loads
+  const sidebar = document.getElementById('tournamentsSidebar');
+  if (sidebar) {
+    sidebar.style.display = '';
+    sidebar.innerHTML = `<div style="${_TITLE_STYLE}">📅 Tournaments</div>`;
+  }
+
+  let fetchedDocs = [];
   try {
     const snap = await getDocs(collection(db, 'tournaments'));
-    _renderSidebar(_filterUpcoming(snap.docs));
+    fetchedDocs = snap.docs;
+    _renderSidebar(_filterUpcoming(fetchedDocs));
   } catch (err) {
-    console.warn('Tournament initial fetch error:', err);
+    console.error('Tournament fetch error:', err);
+    if (sidebar && _isStaff()) {
+      sidebar.innerHTML = `
+        <div style="${_TITLE_STYLE}">📅 Tournaments</div>
+        <p style="font-size:.78rem;color:var(--red,#f87171);margin:0">Could not load tournaments.</p>`;
+    } else if (sidebar) {
+      sidebar.style.display = 'none';
+    }
   }
 
   _unsubscribe = onSnapshot(
     collection(db, 'tournaments'),
     snap => _renderSidebar(_filterUpcoming(snap.docs)),
-    err  => console.warn('Tournament listener error:', err),
+    err  => console.error('Tournament listener error:', err),
   );
 }
 
