@@ -327,7 +327,7 @@ async function _cancelTournament(t) {
 export async function initTournamentSidebar() {
   if (_unsubscribe) _unsubscribe();
 
-  // Show the header immediately so the sidebar is visible while Firestore loads
+  // Show header immediately — sidebar is visible before Firestore responds
   const sidebar = document.getElementById('tournamentsSidebar');
   if (sidebar) {
     sidebar.style.display = '';
@@ -338,9 +338,14 @@ export async function initTournamentSidebar() {
   try {
     const snap = await getDocs(collection(db, 'tournaments'));
     fetchedDocs = snap.docs;
-    _renderSidebar(_filterUpcoming(fetchedDocs));
+    const upcoming = _filterUpcoming(fetchedDocs);
+    if (_isStaff()) {
+      showToast(`Sidebar: ${fetchedDocs.length} in DB, ${upcoming.length} upcoming`);
+    }
+    _renderSidebar(upcoming);
   } catch (err) {
     console.error('Tournament fetch error:', err);
+    if (_isStaff()) showToast(`Sidebar error: ${err?.code || err?.message || 'unknown'}`, 'error');
     if (sidebar && _isStaff()) {
       sidebar.innerHTML = `
         <div style="${_TITLE_STYLE}">📅 Tournaments</div>
@@ -352,8 +357,18 @@ export async function initTournamentSidebar() {
 
   _unsubscribe = onSnapshot(
     collection(db, 'tournaments'),
-    snap => _renderSidebar(_filterUpcoming(snap.docs)),
-    err  => console.error('Tournament listener error:', err),
+    snap => {
+      try {
+        _renderSidebar(_filterUpcoming(snap.docs));
+      } catch (err) {
+        console.error('Sidebar render error:', err);
+        if (_isStaff()) showToast(`Sidebar render error: ${err?.message}`, 'error');
+      }
+    },
+    err => {
+      console.error('Tournament listener error:', err);
+      if (_isStaff()) showToast(`Sidebar listener error: ${err?.code || err?.message}`, 'error');
+    },
   );
 }
 
