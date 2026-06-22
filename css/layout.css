@@ -67,7 +67,7 @@ footer {
 .week-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   margin-bottom: 16px;
   flex-wrap: wrap;
   gap: 10px;
@@ -91,6 +91,7 @@ footer {
 
 .day-tabs {
   display: flex;
+  justify-content: center;
   gap: 6px;
   margin-bottom: 20px;
   overflow-x: auto;
@@ -138,6 +139,7 @@ footer {
 
 .legend {
   display: flex;
+  justify-content: center;
   gap: 16px;
   align-items: center;
   margin-bottom: 18px;
