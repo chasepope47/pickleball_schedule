@@ -119,58 +119,117 @@ function _generateBracket(players, minSize = 0) {
   return { rounds };
 }
 
-function _generateRoundRobin(entries) {
-  if (!entries || entries.length < 2) return null;
+// Generates a true individual round robin schedule (King of the Court) where partners change each round
+function _generateRoundRobin(players, format) {
+  if (!players || players.length < 2) return null;
 
-  const pool = [...entries];
-  if (pool.length % 2 !== 0) {
-    pool.push({ uid: '__BYE__', firstName: 'BYE', lastName: '', isBye: true });
+  // Handle Singles style round robin directly
+  if (format !== 'doubles') {
+    const pool = [...players].sort(() => Math.random() - 0.5);
+    if (pool.length % 2 !== 0) pool.push({ uid: '__BYE__', firstName: 'BYE', lastName: '', isBye: true });
+    
+    const numRounds = pool.length - 1;
+    const rounds = [];
+    for (let r = 0; r < numRounds; r++) {
+      const matches = [];
+      for (let m = 0; m < pool.length / 2; m++) {
+        const p1 = pool[m];
+        const p2 = pool[pool.length - 1 - m];
+        if (!p1.isBye && !p2.isBye) matches.push({ p1, p2, winner: null });
+      }
+      rounds.push({ matches });
+      pool.splice(1, 0, pool.pop());
+    }
+    rounds.push({ isPlayoff: true, isSemi: true, matches: Array.from({ length: 2 }, () => ({ p1: { isTBD: true }, p2: { isTBD: true }, winner: null })) });
+    rounds.push({ isPlayoff: true, isFinal: true, matches: Array.from({ length: 1 }, () => ({ p1: null, p2: null, winner: null })) });
+    return { rounds };
   }
 
-  const numRounds = pool.length - 1;
-  const matchesPerRound = pool.length / 2;
+  // Doubles individual mix-and-match schedule (Requires multiples of 4 ideally, works best with 8)
+  const pool = [...players].sort(() => Math.random() - 0.5);
+  while (pool.length % 4 !== 0) {
+    pool.push({ uid: `__GHOST_${Date.now()}_${pool.length}__`, firstName: 'Ghost', lastName: 'Player', isGhost: true, rating: 3.0 });
+  }
+
+  const numRounds = pool.length - 1; 
   const rounds = [];
 
   for (let r = 0; r < numRounds; r++) {
-    const roundMatches = [];
-    for (let m = 0; m < matchesPerRound; m++) {
-      const p1 = pool[m];
-      const p2 = pool[pool.length - 1 - m];
-      if (p1.isBye || p2.isBye) continue;
+    const matches = [];
+    // Standard Whist/Social scheduling pairing matrix rotation
+    for (let i = 0; i < pool.length / 4; i++) {
+      const idx = i * 4;
+      const a = pool[idx];
+      const b = pool[idx + 1];
+      const c = pool[idx + 2];
+      const d = pool[idx + 3];
 
-      roundMatches.push({ p1, p2, winner: null });
+      // Form 2 unique doubles teams dynamically for this match block row
+      const team1 = {
+        uid: `${a.uid}__${b.uid}`,
+        firstName: `${a.firstName} ${a.lastName}`,
+        lastName: `& ${b.firstName} ${b.lastName}`,
+        rating: ((a.rating || 3.0) + (b.rating || 3.0)) / 2,
+        players: [a, b],
+        isTemporaryTeam: true
+      };
+
+      const team2 = {
+        uid: `${c.uid}__${d.uid}`,
+        firstName: `${c.firstName} ${c.lastName}`,
+        lastName: `& ${c.firstName} ${c.lastName}`,
+        rating: ((c.rating || 3.0) + (d.rating || 3.0)) / 2,
+        players: [c, d],
+        isTemporaryTeam: true
+      };
+
+      matches.push({ p1: team1, p2: team2, winner: null });
     }
-    rounds.push({ matches: roundMatches });
+    rounds.push({ matches });
+    // Rotate pool elements keeping position [0] locked down to secure brand new combinations
     pool.splice(1, 0, pool.pop());
   }
 
-  // Inject structural playoff cuts (Top 4 advance: 2 Semifinal slots + 1 Final championship match)
+  // Inject structural playoff cuts
   rounds.push({ isPlayoff: true, isSemi: true, matches: Array.from({ length: 2 }, () => ({ p1: { isTBD: true }, p2: { isTBD: true }, winner: null })) });
   rounds.push({ isPlayoff: true, isFinal: true, matches: Array.from({ length: 1 }, () => ({ p1: null, p2: null, winner: null })) });
 
   return { rounds };
 }
 
-function _calculateStandingsAndAdvance(bracket) {
+function _calculateStandingsAndAdvance(bracket, format) {
   const standings = {};
 
-  // Compute points and aggregate records across pure schedule matches
+  // Track wins for single players inside temporary team combinations
   bracket.rounds.forEach(round => {
     if (round.isPlayoff) return;
     round.matches.forEach(m => {
       if (!m.winner) return;
-      standings[m.winner.uid] = (standings[m.winner.uid] || 0) + 1;
+      if (m.winner.isTemporaryTeam && Array.isArray(m.winner.players)) {
+        m.winner.players.forEach(p => {
+          standings[p.uid] = (standings[p.uid] || 0) + 1;
+        });
+      } else {
+        standings[m.winner.uid] = (standings[m.winner.uid] || 0) + 1;
+      }
     });
   });
 
-  // Extract entries participating across the structural map
-  const registeredTeams = new Map();
+  // Extract real individual players from the first round setup blocks
+  const individualPlayersMap = new Map();
   bracket.rounds[0].matches.forEach(m => {
-    if (m.p1 && !m.p1.isPlaceholder) registeredTeams.set(m.p1.uid, m.p1);
-    if (m.p2 && !m.p2.isPlaceholder) registeredTeams.set(m.p2.uid, m.p2);
+    [m.p1, m.p2].forEach(entry => {
+      if (!entry) return;
+      if (entry.isTemporaryTeam && Array.isArray(entry.players)) {
+        entry.players.forEach(p => { if (!p.isGhost) individualPlayersMap.set(p.uid, p); });
+      } else if (!entry.isPlaceholder && !entry.isTBD) {
+        individualPlayersMap.set(entry.uid, entry);
+      }
+    });
   });
 
-  const sortedLeaderboard = Array.from(registeredTeams.values()).sort((a, b) => {
+  // Sort players cleanly by total individual wins earned
+  const sortedLeaderboard = Array.from(individualPlayersMap.values()).sort((a, b) => {
     return (standings[b.uid] || 0) - (standings[a.uid] || 0);
   });
 
@@ -179,13 +238,42 @@ function _calculateStandingsAndAdvance(bracket) {
 
   const semiMatches = bracket.rounds[semiIndex].matches;
 
-  // Map high performance leader cuts dynamically onto Semifinal match trees
-  if (sortedLeaderboard.length >= 2) {
-    semiMatches[0].p1 = sortedLeaderboard[0] ? { ...sortedLeaderboard[0], seed: 1 } : { isTBD: true };
-    semiMatches[0].p2 = sortedLeaderboard[3] ? { ...sortedLeaderboard[3], seed: 4 } : (sortedLeaderboard[2] ? { ...sortedLeaderboard[2], seed: 3 } : { isTBD: true });
-    
-    semiMatches[1].p1 = sortedLeaderboard[1] ? { ...sortedLeaderboard[1], seed: 2 } : { isTBD: true };
-    semiMatches[1].p2 = sortedLeaderboard[2] ? { ...sortedLeaderboard[2], seed: 3 } : { isTBD: true };
+  // Build high performance post-season matches out of top 4 individual winners
+  if (format === 'doubles') {
+    if (sortedLeaderboard.length >= 4) {
+      const p1 = sortedLeaderboard[0], p2 = sortedLeaderboard[1], p3 = sortedLeaderboard[2], p4 = sortedLeaderboard[3];
+      
+      // Semifinal Match 1: Seed 1 & Seed 4
+      semiMatches[0].p1 = {
+        uid: `${p1.uid}__${p4.uid}`,
+        firstName: `${p1.firstName} ${p1.lastName}`,
+        lastName: `& ${p4.firstName} ${p4.lastName}`,
+        rating: ((p1.rating || 3.0) + (p4.rating || 3.0)) / 2,
+        players: [p1, p4],
+        seed: '1&4'
+      };
+      // Playoff opponent placeholder until manual edits or automated matching splits are desired
+      semiMatches[0].p2 = { isTBD: true };
+
+      // Semifinal Match 2: Seed 2 & Seed 3
+      semiMatches[1].p1 = {
+        uid: `${p2.uid}__${p3.uid}`,
+        firstName: `${p2.firstName} ${p2.lastName}`,
+        lastName: `& ${p3.firstName} ${p3.lastName}`,
+        rating: ((p2.rating || 3.0) + (p3.rating || 3.0)) / 2,
+        players: [p2, p3],
+        seed: '2&3'
+      };
+      semiMatches[1].p2 = { isTBD: true };
+    }
+  } else {
+    // Standard singles assignment
+    if (sortedLeaderboard.length >= 2) {
+      semiMatches[0].p1 = sortedLeaderboard[0] ? { ...sortedLeaderboard[0], seed: 1 } : { isTBD: true };
+      semiMatches[0].p2 = sortedLeaderboard[3] ? { ...sortedLeaderboard[3], seed: 4 } : (sortedLeaderboard[2] ? { ...sortedLeaderboard[2], seed: 3 } : { isTBD: true });
+      semiMatches[1].p1 = sortedLeaderboard[1] ? { ...sortedLeaderboard[1], seed: 2 } : { isTBD: true };
+      semiMatches[1].p2 = sortedLeaderboard[2] ? { ...sortedLeaderboard[2], seed: 3 } : { isTBD: true };
+    }
   }
 }
 
@@ -213,8 +301,7 @@ async function _advanceWinner(t, roundIdx, matchIdx, winnerUid) {
   match.winner = winner;
 
   if (t.type === 'round_robin') {
-    // Process regular updates across performance indices
-    _calculateStandingsAndAdvance(bracket);
+    _calculateStandingsAndAdvance(bracket, t.format);
 
     const currentRound = bracket.rounds[roundIdx];
     if (currentRound.isPlayoff && roundIdx + 1 < bracket.rounds.length) {
@@ -288,7 +375,7 @@ function _bracketBodyHtml(t) {
           </div>`;
         if (p.isTBD) return `
           <div style="display:flex;align-items:center;gap:8px;padding:7px 10px">
-            <span style="flex:1;font-size:.8rem;color:var(--text-muted);font-style:italic">TBD (Top Win Leaderboard Seeds)</span>
+            <span style="flex:1;font-size:.8rem;color:var(--text-muted);font-style:italic">TBD (Leaderboard Cut)</span>
           </div>`;
         const bg  = won ? 'background:rgba(6,182,212,.1)' : '';
         const col = won ? 'color:var(--cyan);font-weight:700' : 'color:var(--text)';
@@ -315,7 +402,7 @@ function _bracketBodyHtml(t) {
     html += `
       <div style="margin-bottom:16px">
         <div style="font-size:.67rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:var(--cyan);margin-bottom:7px">${label}</div>
-        ${matchesHtml || '<p style="font-size:.8rem;color:var(--text-muted);font-style:italic">No matches.</p>'}
+        ${matchesHtml || '<p style="font-size:.8rem;color:var(--text-muted);font-style:italic">No matches scheduled.</p>'}
       </div>`;
   });
 
@@ -333,7 +420,7 @@ const _COUNT_STYLE = 'font-size:.7rem;color:var(--cyan);font-weight:700;margin-t
 
 function _bracketStatus(t) {
   if (!t.bracket?.rounds) return null;
-  if (t.type === 'round_robin') return 'Round Robin + Playoffs';
+  if (t.type === 'round_robin') return 'Mixed Round Robin';
   const rounds = t.bracket.rounds;
   if (rounds[rounds.length - 1].matches[0]?.winner) return '🏆 Complete';
   let deepest = -1;
@@ -496,7 +583,7 @@ async function _doAssignSlot(t, ri, mi, side, entry) {
   });
 
   if (t.type === 'round_robin') {
-    _calculateStandingsAndAdvance(bracket);
+    _calculateStandingsAndAdvance(bracket, t.format);
   }
 
   await updateDoc(doc(db, 'tournaments', t.id), { 
@@ -659,15 +746,10 @@ function _reservationSlots(courts, dayIdx, startHour, endHour, name, players) {
 export async function createTournamentRecord({ name, type, courts, date, dayIdx, weekKey, startHour, endHour, players, format, extraRounds }) {
   const fmt = format || 'singles';
   const tType = type || 'elimination';
-  
-  let entries = [...players];
-  if (fmt === 'doubles') {
-    entries = _pairForDoubles(players);
-  }
 
   const bracket = tType === 'round_robin' 
-    ? _generateRoundRobin(entries)
-    : _generateBracket(entries, entries.length * Math.pow(2, parseInt(extraRounds) || 0));
+    ? _generateRoundRobin(players, fmt)
+    : _generateBracket(fmt === 'doubles' ? _pairForDoubles(players) : players, players.length * Math.pow(2, parseInt(extraRounds) || 0));
 
   await setDoc(doc(db, 'reservations', weekKey),
     _reservationSlots(courts, dayIdx, startHour, endHour, name, players),
@@ -675,7 +757,7 @@ export async function createTournamentRecord({ name, type, courts, date, dayIdx,
 
   const ref = await addDoc(collection(db, 'tournaments'), {
     name, type: tType, courts, format: fmt, date, dayIdx, weekKey, startHour, endHour, players,
-    bracket, bracketSize: entries.length,
+    bracket, bracketSize: players.length,
     createdBy: state.currentUser.uid,
     createdAt: serverTimestamp(),
   });
@@ -700,17 +782,12 @@ export async function updateTournamentRecord(old, { name, type, courts, date, da
     _reservationSlots(courts, dayIdx, startHour, endHour, name, players),
     { merge: true });
 
-  let entries = [...players];
-  if (fmt === 'doubles') {
-    entries = _pairForDoubles(players);
-  }
-
   const bracket = tType === 'round_robin'
-    ? _generateRoundRobin(entries)
-    : _generateBracket(entries, entries.length * Math.pow(2, parseInt(extraRounds) || 0));
+    ? _generateRoundRobin(players, fmt)
+    : _generateBracket(fmt === 'doubles' ? _pairForDoubles(players) : players, players.length * Math.pow(2, parseInt(extraRounds) || 0));
 
   await updateDoc(doc(db, 'tournaments', old.id), {
     name, type: tType, courts, format: fmt, date, dayIdx, weekKey, startHour, endHour, players,
-    bracket, bracketSize: entries.length,
+    bracket, bracketSize: players.length,
   });
 }
