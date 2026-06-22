@@ -221,14 +221,11 @@ function _renderSidebar(upcoming) {
   if (!sidebar) return;
 
   if (upcoming.length === 0) {
-    if (_isStaff()) {
-      sidebar.style.display = '';
-      sidebar.innerHTML = `
-        <div style="${_TITLE_STYLE}">📅 Tournaments</div>
-        <p style="font-size:.8rem;color:var(--text-muted);line-height:1.5;margin:0">No upcoming tournaments.<br>Create one in the Admin Panel.</p>`;
-    } else {
-      sidebar.style.display = 'none';
-    }
+    sidebar.style.display = '';
+    sidebar.innerHTML = _isStaff()
+      ? `<div style="${_TITLE_STYLE}">📅 Tournaments</div>
+         <p style="font-size:.8rem;color:var(--text-muted);line-height:1.5;margin:0">No upcoming<br>tournaments.</p>`
+      : '';
     return;
   }
 
@@ -339,9 +336,7 @@ export async function initTournamentSidebar() {
     const snap = await getDocs(collection(db, 'tournaments'));
     fetchedDocs = snap.docs;
     const upcoming = _filterUpcoming(fetchedDocs);
-    if (_isStaff()) {
-      showToast(`Sidebar: ${fetchedDocs.length} in DB, ${upcoming.length} upcoming`);
-    }
+    showToast(`Sidebar: role=${state.currentProfile?.role || '?'}, ${fetchedDocs.length} in DB, ${upcoming.length} upcoming`);
     _renderSidebar(upcoming);
   } catch (err) {
     console.error('Tournament fetch error:', err);
