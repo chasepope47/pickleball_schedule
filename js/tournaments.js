@@ -145,7 +145,7 @@ function _generateRoundRobin(players, format) {
     return { rounds };
   }
 
-  // Doubles individual mix-and-match schedule (Requires multiples of 4 ideally, works best with 8)
+  // Doubles individual mix-and-match schedule (King of the Court)
   const pool = [...players].sort(() => Math.random() - 0.5);
   while (pool.length % 4 !== 0) {
     pool.push({ uid: `__GHOST_${Date.now()}_${pool.length}__`, firstName: 'Ghost', lastName: 'Player', isGhost: true, rating: 3.0 });
@@ -156,15 +156,15 @@ function _generateRoundRobin(players, format) {
 
   for (let r = 0; r < numRounds; r++) {
     const matches = [];
-    // Standard Whist/Social scheduling pairing matrix rotation
-    for (let i = 0; i < pool.length / 4; i++) {
-      const idx = i * 4;
-      const a = pool[idx];
-      const b = pool[idx + 1];
-      const c = pool[idx + 2];
-      const d = pool[idx + 3];
+    const half = pool.length / 2;
 
-      // Form 2 unique doubles teams dynamically for this match block row
+    // Cross-circle alignment pairings avoid clones playing together
+    for (let i = 0; i < half; i += 2) {
+      const a = pool[i];
+      const b = pool[pool.length - 1 - i];
+      const c = pool[i + 1];
+      const d = pool[pool.length - 2 - i];
+
       const team1 = {
         uid: `${a.uid}__${b.uid}`,
         firstName: `${a.firstName} ${a.lastName}`,
@@ -177,7 +177,7 @@ function _generateRoundRobin(players, format) {
       const team2 = {
         uid: `${c.uid}__${d.uid}`,
         firstName: `${c.firstName} ${c.lastName}`,
-        lastName: `& ${c.firstName} ${c.lastName}`,
+        lastName: `& ${d.firstName} ${d.lastName}`,
         rating: ((c.rating || 3.0) + (d.rating || 3.0)) / 2,
         players: [c, d],
         isTemporaryTeam: true
@@ -186,7 +186,7 @@ function _generateRoundRobin(players, format) {
       matches.push({ p1: team1, p2: team2, winner: null });
     }
     rounds.push({ matches });
-    // Rotate pool elements keeping position [0] locked down to secure brand new combinations
+    // Rotate pool elements keeping position [0] locked down to secure fresh combinations
     pool.splice(1, 0, pool.pop());
   }
 
@@ -252,7 +252,6 @@ function _calculateStandingsAndAdvance(bracket, format) {
         players: [p1, p4],
         seed: '1&4'
       };
-      // Playoff opponent placeholder until manual edits or automated matching splits are desired
       semiMatches[0].p2 = { isTBD: true };
 
       // Semifinal Match 2: Seed 2 & Seed 3
@@ -267,7 +266,6 @@ function _calculateStandingsAndAdvance(bracket, format) {
       semiMatches[1].p2 = { isTBD: true };
     }
   } else {
-    // Standard singles assignment
     if (sortedLeaderboard.length >= 2) {
       semiMatches[0].p1 = sortedLeaderboard[0] ? { ...sortedLeaderboard[0], seed: 1 } : { isTBD: true };
       semiMatches[0].p2 = sortedLeaderboard[3] ? { ...sortedLeaderboard[3], seed: 4 } : (sortedLeaderboard[2] ? { ...sortedLeaderboard[2], seed: 3 } : { isTBD: true });
