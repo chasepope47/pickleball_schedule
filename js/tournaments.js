@@ -471,13 +471,21 @@ async function _openSlotAssignment(t, ri, mi, side) {
     });
   });
 
-  // Only show players already on the tournament roster who aren't yet placed
-  const available = (t.players || [])
-    .filter(p => !assignedUids.has(p.uid))
-    .sort((a, b) => `${a.firstName}${a.lastName}`.localeCompare(`${b.firstName}${b.lastName}`));
+  // Show all system players not yet placed — assigning one also adds them to the roster
+  let available;
+  try {
+    const snap = await getDocs(collection(db, 'players'));
+    available = snap.docs
+      .map(d => ({ uid: d.id, ...d.data() }))
+      .filter(p => p.status !== 'blocked' && !assignedUids.has(p.uid))
+      .sort((a, b) => `${a.firstName}${a.lastName}`.localeCompare(`${b.firstName}${b.lastName}`));
+  } catch (err) {
+    showToast('Could not load players.', 'error');
+    return;
+  }
 
   if (available.length === 0) {
-    showToast('All tournament players are already placed in the bracket.', 'error');
+    showToast('Every player is already placed in the bracket.', 'error');
     return;
   }
 
