@@ -473,18 +473,19 @@ export function initSpaceBackground() {
   const bg = document.getElementById('spaceBg');
   if (!bg) return;
   const frag = document.createDocumentFragment();
-  for (let i = 0; i < 220; i++) {
+  for (let i = 0; i < 320; i++) {
     const s    = document.createElement('div');
     s.className = 'space-star';
-    const size = Math.random() * 2.2 + 0.4;
-    const dur  = (Math.random() * 3 + 2).toFixed(1);
-    const del  = (Math.random() * 5).toFixed(1);
+    const size = Math.random() * 2.8 + 0.5;
+    const dur  = (Math.random() * 4 + 2).toFixed(1);
+    const del  = (Math.random() * 6).toFixed(1);
+    const glow = (size * 1.2).toFixed(1);
     s.style.cssText =
       `left:${(Math.random()*100).toFixed(2)}%;` +
       `top:${(Math.random()*100).toFixed(2)}%;` +
       `width:${size.toFixed(1)}px;height:${size.toFixed(1)}px;` +
-      `opacity:${(Math.random()*0.65+0.15).toFixed(2)};` +
-      `animation:twinkle ${dur}s ease-in-out ${del}s infinite;`;
+      `opacity:${(Math.random()*0.7+0.2).toFixed(2)};` +
+      `--dur:${dur}s;--delay:${del}s;--glow:${glow}px;`;
     frag.appendChild(s);
   }
   bg.appendChild(frag);
