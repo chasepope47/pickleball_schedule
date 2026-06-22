@@ -512,6 +512,14 @@ async function _renderTournamentsForm() {
           const existingUids = new Set((t.players || []).map(p => p.uid));
 
           if (_editingTournamentId === t.id) {
+            const tEntryCount = (t.format || 'singles') === 'doubles'
+              ? Math.floor((t.players || []).length / 2)
+              : (t.players || []).length;
+            let tAutoSize = 1;
+            while (tAutoSize < tEntryCount) tAutoSize *= 2;
+            const tCurrentExtra = t.bracketSize && t.bracketSize > tAutoSize
+              ? Math.round(Math.log2(t.bracketSize / tAutoSize))
+              : 0;
             return `
               <div style="background:var(--card);border:1px solid var(--cyan-border);border-radius:10px;padding:14px;margin-bottom:8px">
                 <div style="font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--cyan);margin-bottom:12px">Edit Tournament</div>
@@ -566,6 +574,15 @@ async function _renderTournamentsForm() {
                         <span style="font-size:.85rem">${p.firstName} ${p.lastName}</span>
                       </label>`).join('')}
                   </div>
+                </div>
+                <div class="form-group" style="margin-top:8px">
+                  <label>Extra Bracket Rounds</label>
+                  <select id="editExtraRounds">
+                    <option value="0" ${tCurrentExtra === 0 ? 'selected' : ''}>None — auto</option>
+                    <option value="1" ${tCurrentExtra === 1 ? 'selected' : ''}>+1 Round</option>
+                    <option value="2" ${tCurrentExtra === 2 ? 'selected' : ''}>+2 Rounds</option>
+                    <option value="3" ${tCurrentExtra === 3 ? 'selected' : ''}>+3 Rounds</option>
+                  </select>
                 </div>
                 <div style="display:flex;gap:8px;margin-top:12px">
                   <button class="btn btn-primary" id="saveEditBtn" data-id="${t.id}" style="flex:1">Save Changes</button>
@@ -650,6 +667,16 @@ async function _renderTournamentsForm() {
                 </label>`).join('')}
             </div>
           </div>
+          <div class="form-group">
+            <label>Extra Bracket Rounds</label>
+            <p style="font-size:.75rem;color:var(--text-muted);margin:0 0 6px">Reserve TBD slots for players joining later. Use Edit to add them when they register.</p>
+            <select id="tExtraRounds">
+              <option value="0">None — auto based on player count</option>
+              <option value="1">+1 Round (doubles the bracket slots)</option>
+              <option value="2">+2 Rounds (4× the bracket slots)</option>
+              <option value="3">+3 Rounds (8× the bracket slots)</option>
+            </select>
+          </div>
           <button class="btn btn-primary btn-full" id="doTournamentBtn" style="margin-top:12px">Lock Schedule</button>
         </div>
       </div>
@@ -676,13 +703,14 @@ async function _renderTournamentsForm() {
       const t       = upcoming.find(x => x.id === editId);
       if (!t) return;
 
-      const name      = document.getElementById('editTName').value.trim();
-      const dateStr   = document.getElementById('editTDate').value;
-      const startHour = parseInt(document.getElementById('editTStart').value);
-      const endHour   = parseInt(document.getElementById('editTEnd').value);
-      const courts    = Array.from(document.querySelectorAll('.edit-court-cb:checked')).map(cb => parseInt(cb.value));
-      const format    = document.querySelector('input[name="editFormat"]:checked')?.value || 'singles';
-      const selected  = Array.from(document.querySelectorAll('.edit-player-cb:checked')).map(cb => ({ uid: cb.value, name: cb.dataset.name }));
+      const name        = document.getElementById('editTName').value.trim();
+      const dateStr     = document.getElementById('editTDate').value;
+      const startHour   = parseInt(document.getElementById('editTStart').value);
+      const endHour     = parseInt(document.getElementById('editTEnd').value);
+      const courts      = Array.from(document.querySelectorAll('.edit-court-cb:checked')).map(cb => parseInt(cb.value));
+      const format      = document.querySelector('input[name="editFormat"]:checked')?.value || 'singles';
+      const extraRounds = parseInt(document.getElementById('editExtraRounds')?.value) || 0;
+      const selected    = Array.from(document.querySelectorAll('.edit-player-cb:checked')).map(cb => ({ uid: cb.value, name: cb.dataset.name }));
 
       if (!name)               return showToast('Please provide a tournament name.', 'error');
       if (!dateStr)            return showToast('Please select a date.', 'error');
@@ -709,7 +737,7 @@ async function _renderTournamentsForm() {
         });
 
         await updateTournamentRecord(t, {
-          name, courts, format, date: dateStr, dayIdx: targetDayIdx,
+          name, courts, format, extraRounds, date: dateStr, dayIdx: targetDayIdx,
           weekKey: targetWeekKey, startHour, endHour, players: rosterPlayers,
         });
 
@@ -751,13 +779,14 @@ async function _renderTournamentsForm() {
 
     // ── Create tournament ──
     document.getElementById('doTournamentBtn').addEventListener('click', async () => {
-      const name      = document.getElementById('tName').value.trim();
-      const dateStr   = document.getElementById('tDate').value;
-      const startHour = parseInt(document.getElementById('tStart').value);
-      const endHour   = parseInt(document.getElementById('tEnd').value);
-      const courts    = Array.from(document.querySelectorAll('.t-court-cb:checked')).map(cb => parseInt(cb.value));
-      const format    = document.querySelector('input[name="tFormat"]:checked')?.value || 'singles';
-      const selected  = Array.from(document.querySelectorAll('.t-player-cb:checked')).map(cb => ({ uid: cb.value, name: cb.dataset.name }));
+      const name        = document.getElementById('tName').value.trim();
+      const dateStr     = document.getElementById('tDate').value;
+      const startHour   = parseInt(document.getElementById('tStart').value);
+      const endHour     = parseInt(document.getElementById('tEnd').value);
+      const courts      = Array.from(document.querySelectorAll('.t-court-cb:checked')).map(cb => parseInt(cb.value));
+      const format      = document.querySelector('input[name="tFormat"]:checked')?.value || 'singles';
+      const extraRounds = parseInt(document.getElementById('tExtraRounds')?.value) || 0;
+      const selected    = Array.from(document.querySelectorAll('.t-player-cb:checked')).map(cb => ({ uid: cb.value, name: cb.dataset.name }));
 
       if (!name)               return showToast('Please provide a tournament name.', 'error');
       if (!dateStr)            return showToast('Please select a date.', 'error');
@@ -785,7 +814,7 @@ async function _renderTournamentsForm() {
         });
 
         await createTournamentRecord({
-          name, courts, format, date: dateStr, dayIdx: targetDayIdx,
+          name, courts, format, extraRounds, date: dateStr, dayIdx: targetDayIdx,
           weekKey: targetWeekKey, startHour, endHour, players: rosterPlayers,
         });
 

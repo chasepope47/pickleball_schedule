@@ -70,7 +70,7 @@ function _getRoundLabel(roundIdx, totalRounds) {
   return `Round of ${Math.pow(2, fromEnd + 1)}`;
 }
 
-function _generateBracket(players) {
+function _generateBracket(players, minSize = 0) {
   if (!players || players.length < 2) return null;
 
   // Seed by rating descending; win % as tiebreaker
@@ -82,19 +82,31 @@ function _generateBracket(players) {
     return bWp - aWp;
   });
 
-  // Round up to next power of 2 for bye handling
-  let size = 1;
-  while (size < seeded.length) size *= 2;
+  // Natural size = next power of 2 >= player count
+  let naturalSize = 1;
+  while (naturalSize < seeded.length) naturalSize *= 2;
+
+  // Respect minSize (for manually added extra rounds)
+  const size = Math.max(naturalSize, minSize);
 
   // positions[i] = the seed number that occupies bracket slot i
   const positions = _bracketSlots(size);
 
-  // Build round 1 — null players are byes (top seeds get byes)
+  // Return real player, natural BYE (null), or TBD placeholder for expanded slots
+  const getEntry = seed => {
+    if (seed <= seeded.length) return { ...seeded[seed - 1], seed };
+    // Expanded bracket: all empty slots are TBD (not BYE) so they can be filled later
+    if (size > naturalSize) return { uid: `__TBD_${seed}__`, firstName: 'TBD', lastName: '', isTBD: true, seed };
+    return null; // natural BYE in a non-expanded bracket
+  };
+
+  // Build round 1 — null = BYE (auto-win), TBD = placeholder (must be filled/played)
   const r1Matches = [];
   for (let i = 0; i < positions.length; i += 2) {
     const s1 = positions[i], s2 = positions[i + 1];
-    const p1 = s1 <= seeded.length ? { ...seeded[s1 - 1], seed: s1 } : null;
-    const p2 = s2 <= seeded.length ? { ...seeded[s2 - 1], seed: s2 } : null;
+    const p1 = getEntry(s1);
+    const p2 = getEntry(s2);
+    // Only auto-advance for true BYEs (null), never for TBD
     const autoWin = p1 === null ? p2 : (p2 === null ? p1 : null);
     r1Matches.push({ p1, p2, winner: autoWin });
   }
@@ -200,12 +212,19 @@ function _bracketBodyHtml(t) {
       const { p1, p2, winner } = m;
       const p1Won = winner && p1 && winner.uid === p1.uid;
       const p2Won = winner && p2 && winner.uid === p2.uid;
-      const canPick = staff && p1 && p2 && !winner;
+      // Win button shows for real players only; TBD opponents are fine (forfeit/default)
+      const canWinP1 = staff && !winner && p1 && !p1.isTBD && p2;
+      const canWinP2 = staff && !winner && p2 && !p2.isTBD && p1;
 
-      const playerRow = (p, won, slotLabel) => {
+      const playerRow = (p, won, slotLabel, canWin) => {
         if (!p) return `
           <div style="display:flex;align-items:center;gap:8px;padding:7px 10px">
             <span style="flex:1;font-size:.8rem;color:var(--text-muted);font-style:italic">${slotLabel}</span>
+          </div>`;
+        if (p.isTBD) return `
+          <div style="display:flex;align-items:center;gap:8px;padding:7px 10px">
+            ${p.seed ? `<span style="font-size:.65rem;color:var(--text-muted);min-width:20px;text-align:right">#${p.seed}</span>` : ''}
+            <span style="flex:1;font-size:.8rem;color:var(--text-muted);font-style:italic">TBD</span>
           </div>`;
         const bg  = won ? 'background:rgba(6,182,212,.1)' : '';
         const col = won ? 'color:var(--cyan);font-weight:700' : 'color:var(--text)';
@@ -215,19 +234,18 @@ function _bracketBodyHtml(t) {
             <span style="flex:1;font-size:.82rem;${col}">${_displayName(p)}</span>
             ${p.rating != null ? `<span style="font-size:.68rem;color:var(--text-muted)">${Number(p.rating).toFixed(1)}</span>` : ''}
             ${won  ? '<span style="font-size:.78rem;color:var(--cyan)">✓</span>' : ''}
-            ${canPick ? `<button data-advance="${ri}:${mi}:${p.uid}" style="font-size:.68rem;padding:2px 7px;background:var(--cyan);color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:700">Win</button>` : ''}
+            ${canWin ? `<button data-advance="${ri}:${mi}:${p.uid}" style="font-size:.68rem;padding:2px 7px;background:var(--cyan);color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:700">Win</button>` : ''}
           </div>`;
       };
 
-      // Round 0 null slot = BYE; later rounds = TBD
-      const p1Label = 'TBD';
+      const p1Label = ri === 0 && !p1 ? 'BYE' : 'TBD';
       const p2Label = ri === 0 && !p2 ? 'BYE' : 'TBD';
 
       return `
         <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:6px">
-          ${playerRow(p1, p1Won, p1Label)}
+          ${playerRow(p1, p1Won, p1Label, canWinP1)}
           <div style="height:1px;background:var(--border)"></div>
-          ${playerRow(p2, p2Won, p2Label)}
+          ${playerRow(p2, p2Won, p2Label, canWinP2)}
         </div>`;
     }).join('');
 
@@ -314,6 +332,18 @@ function _openTournamentModal(t) {
 
   const actions = [makeBtn('Close', 'btn-secondary', closeModal)];
   if (_isStaff()) {
+    if (hasBracket && !champion) {
+      actions.unshift(makeBtn('+ Add Round', 'btn-secondary', async () => {
+        try {
+          await _addBracketRound(t);
+          const snap = await getDoc(doc(db, 'tournaments', t.id));
+          if (snap.exists()) _openTournamentModal({ id: t.id, ...snap.data() });
+        } catch (err) {
+          console.error(err);
+          showToast('Could not add round.', 'error');
+        }
+      }));
+    }
     actions.unshift(makeBtn('Cancel Tournament', 'btn-danger', async () => {
       if (!confirm(`Cancel "${t.name}"? This will unblock the reserved slots.`)) return;
       try {
@@ -364,6 +394,21 @@ async function _cancelTournament(t) {
   }
   if (Object.keys(updates).length) await updateDoc(doc(db, 'reservations', t.weekKey), updates);
   await deleteDoc(doc(db, 'tournaments', t.id));
+}
+
+// Prepends a new round of TBD vs TBD matches, doubling the bracket size
+async function _addBracketRound(t) {
+  const bracket = JSON.parse(JSON.stringify(t.bracket));
+  const n = bracket.rounds[0].matches.length * 2;
+  bracket.rounds.unshift({
+    matches: Array.from({ length: n }, (_, i) => ({
+      p1: { uid: `__TBD_a${i}__`, firstName: 'TBD', lastName: '', isTBD: true },
+      p2: { uid: `__TBD_b${i}__`, firstName: 'TBD', lastName: '', isTBD: true },
+      winner: null,
+    })),
+  });
+  const bracketSize = Math.pow(2, bracket.rounds.length);
+  await updateDoc(doc(db, 'tournaments', t.id), { bracket, bracketSize });
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -431,10 +476,14 @@ function _reservationSlots(courts, dayIdx, startHour, endHour, name, players) {
   return updates;
 }
 
-export async function createTournamentRecord({ name, courts, date, dayIdx, weekKey, startHour, endHour, players, format }) {
-  const fmt     = format || 'singles';
+export async function createTournamentRecord({ name, courts, date, dayIdx, weekKey, startHour, endHour, players, format, extraRounds }) {
+  const fmt        = format || 'singles';
+  const entryCount = fmt === 'doubles' ? Math.floor(players.length / 2) : players.length;
+  let autoSize = 1;
+  while (autoSize < entryCount) autoSize *= 2;
+  const bracketSize = autoSize * Math.pow(2, parseInt(extraRounds) || 0);
   const entries = fmt === 'doubles' ? _pairForDoubles(players) : players;
-  const bracket = _generateBracket(entries);
+  const bracket = _generateBracket(entries, bracketSize);
 
   await setDoc(doc(db, 'reservations', weekKey),
     _reservationSlots(courts, dayIdx, startHour, endHour, name, players),
@@ -442,7 +491,7 @@ export async function createTournamentRecord({ name, courts, date, dayIdx, weekK
 
   const ref = await addDoc(collection(db, 'tournaments'), {
     name, courts, format: fmt, date, dayIdx, weekKey, startHour, endHour, players,
-    bracket,
+    bracket, bracketSize,
     createdBy: state.currentUser.uid,
     createdAt: serverTimestamp(),
   });
@@ -452,7 +501,7 @@ export async function createTournamentRecord({ name, courts, date, dayIdx, weekK
   return ref;
 }
 
-export async function updateTournamentRecord(old, { name, courts, date, dayIdx, weekKey, startHour, endHour, players, format }) {
+export async function updateTournamentRecord(old, { name, courts, date, dayIdx, weekKey, startHour, endHour, players, format, extraRounds }) {
   const fmt = format || 'singles';
 
   // Clear old reservation slots
@@ -470,20 +519,29 @@ export async function updateTournamentRecord(old, { name, courts, date, dayIdx, 
     _reservationSlots(courts, dayIdx, startHour, endHour, name, players),
     { merge: true });
 
-  // Regenerate bracket if roster or format changed and no real matches played yet
-  const oldUids      = [...(old.players || []).map(p => p.uid)].sort().join(',');
-  const newUids      = [...players.map(p => p.uid)].sort().join(',');
+  // Compute new bracket size from extraRounds selection
+  const entryCount = fmt === 'doubles' ? Math.floor(players.length / 2) : players.length;
+  let autoSize = 1;
+  while (autoSize < entryCount) autoSize *= 2;
+  const newBracketSize = autoSize * Math.pow(2, parseInt(extraRounds) || 0);
+
+  // Regenerate bracket if roster, format, or bracket size changed and no real matches played yet
+  const oldUids       = [...(old.players || []).map(p => p.uid)].sort().join(',');
+  const newUids       = [...players.map(p => p.uid)].sort().join(',');
   const formatChanged = (old.format || 'singles') !== fmt;
+  const sizeChanged   = (old.bracketSize || 0) !== newBracketSize;
   let bracket = old.bracket;
-  if (oldUids !== newUids || formatChanged) {
-    const hasRealResults = old.bracket?.rounds?.some(r => r.matches.some(m => m.winner && m.p1 && m.p2));
+  if (oldUids !== newUids || formatChanged || sizeChanged) {
+    const hasRealResults = old.bracket?.rounds?.some(r =>
+      r.matches.some(m => m.winner && !m.winner?.isTBD && m.p1 && !m.p1?.isTBD && m.p2 && !m.p2?.isTBD));
     if (!hasRealResults) {
       const entries = fmt === 'doubles' ? _pairForDoubles(players) : players;
-      bracket = _generateBracket(entries);
+      bracket = _generateBracket(entries, newBracketSize);
     }
   }
 
   await updateDoc(doc(db, 'tournaments', old.id), {
-    name, courts, format: fmt, date, dayIdx, weekKey, startHour, endHour, players, bracket,
+    name, courts, format: fmt, date, dayIdx, weekKey, startHour, endHour, players,
+    bracket, bracketSize: newBracketSize,
   });
 }
