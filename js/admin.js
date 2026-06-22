@@ -615,11 +615,15 @@ async function _renderTournamentsForm() {
         monday.setDate(selectedDate.getDate() - targetDayIdx);
         const targetWeekKey = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
 
-        const rosterPlayers = selected.map(s => ({
-          uid: s.uid,
-          firstName: s.name.split(' ')[0],
-          lastName:  s.name.split(' ')[1] || '',
-        }));
+        const rosterPlayers = selected.map(s => {
+          const full = players.find(p => p.uid === s.uid);
+          return {
+            uid:       s.uid,
+            firstName: s.name.split(' ')[0],
+            lastName:  s.name.split(' ')[1] || '',
+            rating:    full?.rating ?? 3.0,
+          };
+        });
 
         const updates = {};
         for (let h = startHour; h < endHour; h++) {
