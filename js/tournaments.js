@@ -203,7 +203,6 @@ async function _advanceWinner(t, roundIdx, matchIdx, winnerUid) {
   if (!winner) return;
   match.winner = winner;
 
-  // Progression logic only applies to elimination trees
   if (t.type !== 'round_robin') {
     const next = roundIdx + 1;
     if (next < bracket.rounds.length) {
@@ -260,7 +259,9 @@ function _bracketBodyHtml(t) {
       const p2Won = winner && p2 && winner.uid === p2.uid;
       const canWinP1 = staff && !winner && p1 && (isRR || (!p1.isTBD && p2));
       const canWinP2 = staff && !winner && p2 && (isRR || (!p2.isTBD && p1));
-      const ASGN = slot => `<button class="slot-assign-btn" data-slot="${slot}" style="font-size:.65rem;padding:2px 6px;background:transparent;color:var(--cyan);border:1px solid var(--cyan);border-radius:4px;cursor:pointer;flex-shrink:0">Assign</button>`;
+      
+      // Inline edit/assign button element
+      const ASGN = (slot, text = 'Assign') => `<button class="slot-assign-btn" data-slot="${slot}" style="font-size:.65rem;padding:2px 6px;background:transparent;color:var(--cyan);border:1px solid var(--cyan);border-radius:4px;cursor:pointer;flex-shrink:0">${text}</button>`;
 
       const playerRow = (p, won, slotLabel, canWin, slotRef) => {
         if (!p) return `
@@ -282,10 +283,10 @@ function _bracketBodyHtml(t) {
           <div style="display:flex;align-items:center;gap:6px;padding:7px 10px;${bg}">
             ${p.seed ? `<span style="font-size:.65rem;color:var(--text-muted);min-width:20px;text-align:right">#${p.seed}</span>` : '<span style="min-width:20px"></span>'}
             <span style="flex:1;font-size:.82rem;${col}">${_displayName(p)}</span>
-            ${!p.isPlaceholder && p.rating != null ? `<span style="font-size:.68rem;color:var(--text-muted)">${Number(p.rating).toFixed(1)}</span>` : ''}
+            ${!p.isPlaceholder && p.rating != null ? `<span style="font-size:.68rem;color:var(--text-muted);margin-right:4px">${Number(p.rating).toFixed(1)}</span>` : ''}
             ${won  ? '<span style="font-size:.78rem;color:var(--cyan)">✓</span>' : ''}
-            ${canWin ? `<button data-advance="${ri}:${mi}:${p.uid}" style="font-size:.68rem;padding:2px 7px;background:var(--cyan);color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:700">${isRR ? 'Set Win' : 'Win'}</button>` : ''}
-            ${staff && !winner && p.isPlaceholder ? ASGN(slotRef) : ''}
+            ${canWin ? `<button data-advance="${ri}:${mi}:${p.uid}" style="font-size:.68rem;padding:2px 7px;background:var(--cyan);color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:700;margin-right:4px">${isRR ? 'Set Win' : 'Win'}</button>` : ''}
+            ${staff && !winner ? ASGN(slotRef, p.isPlaceholder ? 'Assign' : 'Edit') : ''}
           </div>`;
       };
 
@@ -493,7 +494,7 @@ async function _doAssignSlot(t, ri, mi, side, entry) {
   if (snap.exists()) _openTournamentModal({ id: t.id, ...snap.data() });
 }
 
-// Opens a picker so staff can assign a real player/team to a bracket slot
+// Opens a picker so staff can assign or edit a player/team to a bracket slot
 async function _openSlotAssignment(t, ri, mi, side) {
   const fmt = t.format || 'singles';
   const available = Array.isArray(t.players) ? [...t.players] : [];
@@ -504,6 +505,10 @@ async function _openSlotAssignment(t, ri, mi, side) {
     return;
   }
 
+  // Identify if an entry already occupies this specific bracket coordinate
+  const existingEntry = t.bracket?.rounds?.[ri]?.matches?.[mi]?.[side];
+  const isEditing = existingEntry && !existingEntry.isPlaceholder && !existingEntry.isTBD;
+
   const opts = available.map(p =>
     `<option value="${p.uid}">${p.firstName} ${p.lastName}${p.rating ? ' ★' + p.rating : ''}</option>`).join('');
 
@@ -512,12 +517,12 @@ async function _openSlotAssignment(t, ri, mi, side) {
 
   if (fmt === 'singles') {
     setModal({
-      title:   'Assign Player',
-      sub:     'Replace this slot with a real player',
+      title:   isEditing ? 'Edit Position Entry' : 'Assign Player',
+      sub:     isEditing ? 'Modify the selected player for this placement slot' : 'Replace this slot with a real player',
       body:    `<div class="form-group"><label>Select Player</label><select id="asgSel">${opts}</select></div>`,
       actions: [
         makeBtn('Back', 'btn-secondary', backFn),
-        makeBtn('Assign →', 'btn-primary', async () => {
+        makeBtn(isEditing ? 'Save Changes' : 'Assign →', 'btn-primary', async () => {
           const uid = document.getElementById('asgSel').value;
           const p   = available.find(x => x.uid === uid);
           if (!p) return;
@@ -525,9 +530,14 @@ async function _openSlotAssignment(t, ri, mi, side) {
         }),
       ],
     });
+
+    // Preset current single player if editing
+    if (isEditing && document.getElementById('asgSel')) {
+      document.getElementById('asgSel').value = existingEntry.uid;
+    }
   } else {
     setModal({
-      title:   'Assign Doubles Team',
+      title:   isEditing ? 'Edit Doubles Team Placement' : 'Assign Doubles Team',
       sub:     'Pick two players to form a team for this slot',
       body: `
         <div class="form-group"><label>Player 1</label><select id="asgP1">${opts}</select></div>
@@ -535,7 +545,7 @@ async function _openSlotAssignment(t, ri, mi, side) {
         <div class="auth-error hidden" id="asgErr" style="margin-top:8px"></div>`,
       actions: [
         makeBtn('Back', 'btn-secondary', backFn),
-        makeBtn('Assign →', 'btn-primary', async () => {
+        makeBtn(isEditing ? 'Save Team' : 'Assign →', 'btn-primary', async () => {
           const uid1 = document.getElementById('asgP1').value;
           const uid2 = document.getElementById('asgP2').value;
           if (!uid1 || !uid2 || uid1 === uid2) {
@@ -558,6 +568,16 @@ async function _openSlotAssignment(t, ri, mi, side) {
         }),
       ],
     });
+
+    // Preset current split player targets if editing a doubles entry
+    if (isEditing && existingEntry.players && existingEntry.players.length === 2) {
+      if (document.getElementById('asgP1')) document.getElementById('asgP1').value = existingEntry.players[0].uid;
+      if (document.getElementById('asgP2')) document.getElementById('asgP2').value = existingEntry.players[1].uid;
+    } else if (isEditing && existingEntry.uid.includes('__')) {
+      const [u1, u2] = existingEntry.uid.split('__');
+      if (document.getElementById('asgP1')) document.getElementById('asgP1').value = u1;
+      if (document.getElementById('asgP2')) document.getElementById('asgP2').value = u2;
+    }
   }
 }
 
@@ -628,7 +648,7 @@ function _reservationSlots(courts, dayIdx, startHour, endHour, name, players) {
 
 export async function createTournamentRecord({ name, type, courts, date, dayIdx, weekKey, startHour, endHour, players, format, extraRounds }) {
   const fmt = format || 'singles';
-  const tType = type || 'elimination'; // 'elimination' or 'round_robin'
+  const tType = type || 'elimination';
   
   let entries = [...players];
   if (fmt === 'doubles') {
