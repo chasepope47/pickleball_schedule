@@ -16,6 +16,22 @@ function isStaff() {
   return r === 'admin' || r === 'manager';
 }
 
+const MAX_RESERVATIONS = 2;
+
+function _countMyReservations() {
+  const uid = state.currentUser?.uid;
+  if (!uid) return 0;
+  let count = 0;
+  for (const courtData of Object.values(state.data)) {
+    for (const dayData of Object.values(courtData)) {
+      for (const res of Object.values(dayData)) {
+        if (normalizeRes(res).some(p => p.uid === uid)) count++;
+      }
+    }
+  }
+  return count;
+}
+
 // ── Streak ───────────────────────────────────────────────────────────────────
 
 async function _updateStreak() {
@@ -386,6 +402,10 @@ export function render() {
 
 export function openReserveModal(court, dayIdx, hour) {
   if (!requireWaiver(() => openReserveModal(court, dayIdx, hour))) return;
+  if (!isStaff() && _countMyReservations() >= MAX_RESERVATIONS) {
+    showToast(`You can only reserve up to ${MAX_RESERVATIONS} time slots per week.`, 'error');
+    return;
+  }
   const profile = state.currentProfile;
   const dateStr = dayDate(dayIdx).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
@@ -426,6 +446,10 @@ export function openReserveModal(court, dayIdx, hour) {
 
 export function openJoinModal(court, dayIdx, hour, currentPlayers) {
   if (!requireWaiver(() => openJoinModal(court, dayIdx, hour, currentPlayers))) return;
+  if (!isStaff() && _countMyReservations() >= MAX_RESERVATIONS) {
+    showToast(`You can only reserve up to ${MAX_RESERVATIONS} time slots per week.`, 'error');
+    return;
+  }
   const profile  = state.currentProfile;
   const dateStr  = dayDate(dayIdx).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   const openLeft = MAX_PLAYERS - currentPlayers.length - 1;
