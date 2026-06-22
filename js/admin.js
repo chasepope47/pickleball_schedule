@@ -8,7 +8,7 @@ import { state } from './state.js';
 import { setModal, closeModal, makeBtn, showToast } from './ui.js';
 import { getInitials, ratingOptions } from './utils.js';
 import { renderAdminDeptContent } from './departments.js';
-import { createTournamentRecord, refreshTournamentSidebar } from './tournaments.js';
+import { createTournamentRecord, updateTournamentRecord, refreshTournamentSidebar } from './tournaments.js';
 import { BADGES } from './constants.js';
 
 // ── Secondary Firebase app (creates users without signing out the current user) ─
@@ -476,6 +476,8 @@ async function _submitCreate() {
 
 // ── Tournaments View ──────────────────────────────────────────────────────────
 
+let _editingTournamentId = null;
+
 async function _renderTournamentsForm() {
   const content = document.getElementById('adminContent');
   if (!content) return;
@@ -496,22 +498,83 @@ async function _renderTournamentsForm() {
       .filter(t => t.date >= todayStr)
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    const fmtH = h => h === 0 ? '12AM' : h === 12 ? '12PM' : h > 12 ? `${h-12}PM` : `${h}AM`;
-    const fmtD = dateStr => {
-      const [y, m, d] = dateStr.split('-').map(Number);
-      return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-    };
+    const fmtH = h => h === 0 ? '12AM' : h === 12 ? '12PM' : h > 12 ? `${h - 12}PM` : `${h}AM`;
+    const fmtD = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); };
+    const getCourts = t => Array.isArray(t.courts) ? t.courts : (t.court != null ? [t.court] : []);
+    const courtsLabel = t => { const c = getCourts(t); return c.length > 1 ? `Courts ${c.join(' & ')}` : `Court ${c[0]}`; };
+    const courtHoursSelect = (id, vals, sel) => vals.map(h => `<option value="${h}" ${h === sel ? 'selected' : ''}>${fmtH(h)}</option>`).join('');
 
+    // Build the list of existing tournaments (or edit form inline)
     const upcomingHtml = upcoming.length === 0
       ? '<p style="font-size:.82rem;color:var(--text-muted);padding:10px 0">No upcoming tournaments.</p>'
-      : upcoming.map(t => `
-          <div class="dept-admin-row" style="flex-wrap:wrap;gap:6px">
-            <div class="dept-admin-info">
-              <div class="dept-admin-name">${t.name}</div>
-              <div class="dept-admin-meta">${fmtD(t.date)} · Court ${t.court} · ${fmtH(t.startHour)}–${fmtH(t.endHour)} · ${(t.players||[]).length} players</div>
-            </div>
-            <button class="admin-btn delete" data-action="cancel-tourney" data-id="${t.id}" data-name="${t.name}">Cancel</button>
-          </div>`).join('');
+      : upcoming.map(t => {
+          const tCourts = getCourts(t);
+          const existingUids = new Set((t.players || []).map(p => p.uid));
+
+          if (_editingTournamentId === t.id) {
+            return `
+              <div style="background:var(--card);border:1px solid var(--cyan-border);border-radius:10px;padding:14px;margin-bottom:8px">
+                <div style="font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--cyan);margin-bottom:12px">Edit Tournament</div>
+                <div class="form-group">
+                  <label>Tournament Name</label>
+                  <input type="text" id="editTName" value="${t.name.replace(/"/g, '&quot;')}" />
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Courts</label>
+                    <div style="display:flex;gap:14px;padding:6px 0">
+                      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem">
+                        <input type="checkbox" class="edit-court-cb" value="1" ${tCourts.includes(1) ? 'checked' : ''}> Court 1
+                      </label>
+                      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem">
+                        <input type="checkbox" class="edit-court-cb" value="2" ${tCourts.includes(2) ? 'checked' : ''}> Court 2
+                      </label>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label>Date</label>
+                    <input type="date" id="editTDate" value="${t.date}" min="${todayStr}" />
+                  </div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label>Start Hour</label>
+                    <select id="editTStart">${courtHoursSelect('editTStart', [6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21], t.startHour)}</select>
+                  </div>
+                  <div class="form-group">
+                    <label>End Hour</label>
+                    <select id="editTEnd">${courtHoursSelect('editTEnd', [7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22], t.endHour)}</select>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label>Roster</label>
+                  <div style="background:var(--hover);padding:10px;border:1px solid var(--border);border-radius:8px;max-height:130px;overflow-y:auto">
+                    ${players.map(p => `
+                      <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer">
+                        <input type="checkbox" class="edit-player-cb" value="${p.uid}" data-name="${p.firstName} ${p.lastName}" ${existingUids.has(p.uid) ? 'checked' : ''} />
+                        <span style="font-size:.85rem">${p.firstName} ${p.lastName}</span>
+                      </label>`).join('')}
+                  </div>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:12px">
+                  <button class="btn btn-primary" id="saveEditBtn" data-id="${t.id}" style="flex:1">Save Changes</button>
+                  <button class="btn btn-secondary" id="discardEditBtn">Discard</button>
+                </div>
+              </div>`;
+          }
+
+          return `
+            <div class="dept-admin-row" style="flex-wrap:wrap;gap:6px">
+              <div class="dept-admin-info">
+                <div class="dept-admin-name">${t.name}</div>
+                <div class="dept-admin-meta">${fmtD(t.date)} · ${courtsLabel(t)} · ${fmtH(t.startHour)}–${fmtH(t.endHour)} · ${(t.players || []).length} players</div>
+              </div>
+              <div style="display:flex;gap:6px">
+                <button class="admin-btn promote" data-action="edit-tourney" data-id="${t.id}">Edit</button>
+                <button class="admin-btn delete" data-action="cancel-tourney" data-id="${t.id}">Cancel</button>
+              </div>
+            </div>`;
+        }).join('');
 
     content.innerHTML = `
       <div style="padding-top:8px">
@@ -521,7 +584,7 @@ async function _renderTournamentsForm() {
         </div>
         <div style="border-top:1px solid var(--border);padding-top:16px">
           <p style="font-size:.85rem;color:var(--text-dim);margin-bottom:14px">
-            Schedule a tournament for any future date. This automatically blocks public access to the selected court.
+            Schedule a tournament for any future date. This automatically blocks the selected courts.
           </p>
           <div class="form-group">
             <label>Tournament Name</label>
@@ -529,8 +592,15 @@ async function _renderTournamentsForm() {
           </div>
           <div class="form-row">
             <div class="form-group">
-              <label>Court</label>
-              <select id="tCourt"><option value="1">Court 1</option><option value="2">Court 2</option></select>
+              <label>Courts</label>
+              <div style="display:flex;gap:14px;padding:6px 0">
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                  <input type="checkbox" class="t-court-cb" value="1" checked> Court 1
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                  <input type="checkbox" class="t-court-cb" value="2"> Court 2
+                </label>
+              </div>
             </div>
             <div class="form-group">
               <label>Date</label>
@@ -562,20 +632,88 @@ async function _renderTournamentsForm() {
       </div>
     `;
 
-    // Cancel existing tournament
+    // ── Edit button ──
+    content.querySelectorAll('[data-action="edit-tourney"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        _editingTournamentId = btn.dataset.id;
+        _renderTournamentsForm();
+      });
+    });
+
+    // ── Discard edit ──
+    document.getElementById('discardEditBtn')?.addEventListener('click', () => {
+      _editingTournamentId = null;
+      _renderTournamentsForm();
+    });
+
+    // ── Save edit ──
+    document.getElementById('saveEditBtn')?.addEventListener('click', async () => {
+      const saveBtn = document.getElementById('saveEditBtn');
+      const editId  = saveBtn.dataset.id;
+      const t       = upcoming.find(x => x.id === editId);
+      if (!t) return;
+
+      const name      = document.getElementById('editTName').value.trim();
+      const dateStr   = document.getElementById('editTDate').value;
+      const startHour = parseInt(document.getElementById('editTStart').value);
+      const endHour   = parseInt(document.getElementById('editTEnd').value);
+      const courts    = Array.from(document.querySelectorAll('.edit-court-cb:checked')).map(cb => parseInt(cb.value));
+      const selected  = Array.from(document.querySelectorAll('.edit-player-cb:checked')).map(cb => ({ uid: cb.value, name: cb.dataset.name }));
+
+      if (!name)               return showToast('Please provide a tournament name.', 'error');
+      if (!dateStr)            return showToast('Please select a date.', 'error');
+      if (courts.length === 0) return showToast('Please select at least one court.', 'error');
+      if (startHour >= endHour) return showToast('End time must be after start time.', 'error');
+      if (selected.length === 0) return showToast('Please select at least one player.', 'error');
+
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving…';
+      try {
+        const [y, m, d]   = dateStr.split('-').map(Number);
+        const sel          = new Date(y, m - 1, d);
+        const dow          = sel.getDay();
+        const targetDayIdx = dow === 0 ? 6 : dow - 1;
+        const mon          = new Date(sel);
+        mon.setDate(sel.getDate() - targetDayIdx);
+        const targetWeekKey = `${mon.getFullYear()}-${String(mon.getMonth() + 1).padStart(2, '0')}-${String(mon.getDate()).padStart(2, '0')}`;
+
+        const rosterPlayers = selected.map(s => {
+          const full = players.find(p => p.uid === s.uid);
+          return { uid: s.uid, firstName: s.name.split(' ')[0], lastName: s.name.split(' ')[1] || '', rating: full?.rating ?? 3.0 };
+        });
+
+        await updateTournamentRecord(t, {
+          name, courts, date: dateStr, dayIdx: targetDayIdx,
+          weekKey: targetWeekKey, startHour, endHour, players: rosterPlayers,
+        });
+
+        showToast(`"${name}" updated.`);
+        _editingTournamentId = null;
+        refreshTournamentSidebar();
+        _renderTournamentsForm();
+      } catch (err) {
+        console.error('Failed to save edit:', err);
+        showToast(`Failed to save: ${err?.message || 'Check connection.'}`, 'error');
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save Changes';
+      }
+    });
+
+    // ── Cancel tournament ──
     content.querySelectorAll('[data-action="cancel-tourney"]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const t = upcoming.find(x => x.id === btn.dataset.id);
-        if (!t) return;
-        if (!confirm(`Cancel "${t.name}"? This will unblock the reserved slots.`)) return;
+        if (!t || !confirm(`Cancel "${t.name}"? This will unblock the reserved slots.`)) return;
         try {
+          const tCourts = Array.isArray(t.courts) ? t.courts : (t.court != null ? [t.court] : []);
           const updates = {};
-          for (let h = t.startHour; h < t.endHour; h++) {
-            updates[`${t.court}_${t.dayIdx}_${h}`] = deleteField();
+          for (const c of tCourts) {
+            for (let h = t.startHour; h < t.endHour; h++) updates[`${c}_${t.dayIdx}_${h}`] = deleteField();
           }
-          await updateDoc(doc(db, 'reservations', t.weekKey), updates);
+          if (Object.keys(updates).length) await updateDoc(doc(db, 'reservations', t.weekKey), updates);
           await deleteDoc(doc(db, 'tournaments', t.id));
           showToast(`"${t.name}" cancelled.`);
+          if (_editingTournamentId === t.id) _editingTournamentId = null;
           refreshTournamentSidebar();
           _renderTournamentsForm();
         } catch (err) {
@@ -585,61 +723,41 @@ async function _renderTournamentsForm() {
       });
     });
 
+    // ── Create tournament ──
     document.getElementById('doTournamentBtn').addEventListener('click', async () => {
       const name      = document.getElementById('tName').value.trim();
-      const court     = parseInt(document.getElementById('tCourt').value);
       const dateStr   = document.getElementById('tDate').value;
       const startHour = parseInt(document.getElementById('tStart').value);
       const endHour   = parseInt(document.getElementById('tEnd').value);
+      const courts    = Array.from(document.querySelectorAll('.t-court-cb:checked')).map(cb => parseInt(cb.value));
+      const selected  = Array.from(document.querySelectorAll('.t-player-cb:checked')).map(cb => ({ uid: cb.value, name: cb.dataset.name }));
 
-      if (!name)    return showToast('Please provide a tournament name.', 'error');
-      if (!dateStr) return showToast('Please select a date.', 'error');
+      if (!name)               return showToast('Please provide a tournament name.', 'error');
+      if (!dateStr)            return showToast('Please select a date.', 'error');
+      if (courts.length === 0) return showToast('Please select at least one court.', 'error');
       if (startHour >= endHour) return showToast('End time must be after start time.', 'error');
-
-      const selected = Array.from(document.querySelectorAll('.t-player-cb:checked')).map(cb => ({
-        uid: cb.value,
-        name: cb.dataset.name,
-      }));
       if (selected.length === 0) return showToast('Please select at least one player.', 'error');
 
-      const btn = document.getElementById('doTournamentBtn');
-      btn.disabled = true;
-      btn.textContent = 'Locking Schedule…';
-
+      const createBtn = document.getElementById('doTournamentBtn');
+      createBtn.disabled = true;
+      createBtn.textContent = 'Locking Schedule…';
       try {
-        const [y, m, d] = dateStr.split('-').map(Number);
-        const selectedDate  = new Date(y, m - 1, d);
-        const dayOfWeek     = selectedDate.getDay();
-        const targetDayIdx  = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-        const monday        = new Date(selectedDate);
-        monday.setDate(selectedDate.getDate() - targetDayIdx);
-        const targetWeekKey = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+        const [y, m, d]   = dateStr.split('-').map(Number);
+        const sel          = new Date(y, m - 1, d);
+        const dow          = sel.getDay();
+        const targetDayIdx = dow === 0 ? 6 : dow - 1;
+        const mon          = new Date(sel);
+        mon.setDate(sel.getDate() - targetDayIdx);
+        const targetWeekKey = `${mon.getFullYear()}-${String(mon.getMonth() + 1).padStart(2, '0')}-${String(mon.getDate()).padStart(2, '0')}`;
 
         const rosterPlayers = selected.map(s => {
           const full = players.find(p => p.uid === s.uid);
-          return {
-            uid:       s.uid,
-            firstName: s.name.split(' ')[0],
-            lastName:  s.name.split(' ')[1] || '',
-            rating:    full?.rating ?? 3.0,
-          };
+          return { uid: s.uid, firstName: s.name.split(' ')[0], lastName: s.name.split(' ')[1] || '', rating: full?.rating ?? 3.0 };
         });
 
-        const updates = {};
-        for (let h = startHour; h < endHour; h++) {
-          updates[`${court}_${targetDayIdx}_${h}`] = {
-            isTournament: true,
-            tournamentName: name,
-            players: rosterPlayers,
-            maxPlayers: rosterPlayers.length,
-            createdBy: state.currentUser.uid,
-          };
-        }
-        await setDoc(doc(db, 'reservations', targetWeekKey), updates, { merge: true });
         await createTournamentRecord({
-          name, court, date: dateStr, dayIdx: targetDayIdx,
-          weekKey: targetWeekKey, startHour, endHour,
-          players: rosterPlayers,
+          name, courts, date: dateStr, dayIdx: targetDayIdx,
+          weekKey: targetWeekKey, startHour, endHour, players: rosterPlayers,
         });
 
         showToast(`Schedule locked for "${name}" on ${dateStr}.`);
@@ -651,8 +769,8 @@ async function _renderTournamentsForm() {
           ? 'Permission denied — check Firestore rules.'
           : (err?.message || 'Check connection.');
         showToast(`Failed to lock schedule: ${detail}`, 'error');
-        btn.disabled = false;
-        btn.textContent = 'Lock Schedule';
+        createBtn.disabled = false;
+        createBtn.textContent = 'Lock Schedule';
       }
     });
 

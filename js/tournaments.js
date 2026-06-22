@@ -1,6 +1,6 @@
 import {
   db, collection, addDoc, doc, deleteDoc, getDocs, getDoc, onSnapshot,
-  serverTimestamp, updateDoc, deleteField,
+  serverTimestamp, updateDoc, deleteField, setDoc,
 } from './firebase.js';
 import { state } from './state.js';
 import { setModal, closeModal, makeBtn, showToast } from './ui.js';
@@ -29,6 +29,18 @@ function _localToday() {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+function _getCourts(t) {
+  if (Array.isArray(t.courts)) return t.courts;
+  if (t.court != null) return [t.court];
+  return [];
+}
+
+function _courtsLabel(t) {
+  const c = _getCourts(t);
+  if (c.length === 0) return 'Court ?';
+  return c.length > 1 ? `Courts ${c.join(' & ')}` : `Court ${c[0]}`;
 }
 
 function _filterUpcoming(docs) {
@@ -239,7 +251,7 @@ function _renderSidebar(upcoming) {
           <div style="${_NAME_STYLE}">${t.name}</div>
           <div style="${_META_STYLE}">
             <span>${_fmtDate(t.date)}</span>
-            <span>Court ${t.court}</span>
+            <span>${_courtsLabel(t)}</span>
           </div>
           <div style="${_TIME_STYLE}">${_fmtH(t.startHour)} – ${_fmtH(t.endHour)}</div>
           ${status
@@ -285,7 +297,7 @@ function _openTournamentModal(t) {
 
   setModal({
     title: t.name,
-    sub:   `${_fmtDate(t.date)} · Court ${t.court} · ${_fmtH(t.startHour)}–${_fmtH(t.endHour)}`,
+    sub:   `${_fmtDate(t.date)} · ${_courtsLabel(t)} · ${_fmtH(t.startHour)}–${_fmtH(t.endHour)}`,
     body,
     actions,
   });
@@ -311,11 +323,14 @@ function _openTournamentModal(t) {
 }
 
 async function _cancelTournament(t) {
+  const courts = _getCourts(t);
   const updates = {};
-  for (let h = t.startHour; h < t.endHour; h++) {
-    updates[`${t.court}_${t.dayIdx}_${h}`] = deleteField();
+  for (const c of courts) {
+    for (let h = t.startHour; h < t.endHour; h++) {
+      updates[`${c}_${t.dayIdx}_${h}`] = deleteField();
+    }
   }
-  await updateDoc(doc(db, 'reservations', t.weekKey), updates);
+  if (Object.keys(updates).length) await updateDoc(doc(db, 'reservations', t.weekKey), updates);
   await deleteDoc(doc(db, 'tournaments', t.id));
 }
 
@@ -336,7 +351,6 @@ export async function initTournamentSidebar() {
     const snap = await getDocs(collection(db, 'tournaments'));
     fetchedDocs = snap.docs;
     const upcoming = _filterUpcoming(fetchedDocs);
-    showToast(`Sidebar: role=${state.currentProfile?.role || '?'}, ${fetchedDocs.length} in DB, ${upcoming.length} upcoming`);
     _renderSidebar(upcoming);
   } catch (err) {
     console.error('Tournament fetch error:', err);
@@ -369,20 +383,67 @@ export async function initTournamentSidebar() {
 
 export async function refreshTournamentSidebar() {}
 
-export async function createTournamentRecord({ name, court, date, dayIdx, weekKey, startHour, endHour, players }) {
+function _reservationSlots(courts, dayIdx, startHour, endHour, name, players) {
+  const updates = {};
+  for (const c of courts) {
+    for (let h = startHour; h < endHour; h++) {
+      updates[`${c}_${dayIdx}_${h}`] = {
+        isTournament: true,
+        tournamentName: name,
+        players,
+        maxPlayers: players.length,
+        createdBy: state.currentUser.uid,
+      };
+    }
+  }
+  return updates;
+}
+
+export async function createTournamentRecord({ name, courts, date, dayIdx, weekKey, startHour, endHour, players }) {
   const bracket = _generateBracket(players);
 
+  await setDoc(doc(db, 'reservations', weekKey),
+    _reservationSlots(courts, dayIdx, startHour, endHour, name, players),
+    { merge: true });
+
   const ref = await addDoc(collection(db, 'tournaments'), {
-    name, court, date, dayIdx, weekKey, startHour, endHour, players,
+    name, courts, date, dayIdx, weekKey, startHour, endHour, players,
     bracket,
     createdBy: state.currentUser.uid,
     createdAt: serverTimestamp(),
   });
 
   const verify = await getDoc(ref);
-  if (!verify.exists()) {
-    throw new Error('Tournament was not saved — check Firestore permissions.');
+  if (!verify.exists()) throw new Error('Tournament was not saved — check Firestore permissions.');
+  return ref;
+}
+
+export async function updateTournamentRecord(old, { name, courts, date, dayIdx, weekKey, startHour, endHour, players }) {
+  // Clear old reservation slots
+  const oldCourts = _getCourts(old);
+  const clearUpdates = {};
+  for (const c of oldCourts) {
+    for (let h = old.startHour; h < old.endHour; h++) {
+      clearUpdates[`${c}_${old.dayIdx}_${h}`] = deleteField();
+    }
+  }
+  if (Object.keys(clearUpdates).length) await updateDoc(doc(db, 'reservations', old.weekKey), clearUpdates);
+
+  // Write new reservation slots
+  await setDoc(doc(db, 'reservations', weekKey),
+    _reservationSlots(courts, dayIdx, startHour, endHour, name, players),
+    { merge: true });
+
+  // Regenerate bracket only if roster changed and no real matches have been played
+  const oldUids = [...(old.players || []).map(p => p.uid)].sort().join(',');
+  const newUids = [...players.map(p => p.uid)].sort().join(',');
+  let bracket = old.bracket;
+  if (oldUids !== newUids) {
+    const hasRealResults = old.bracket?.rounds?.some(r => r.matches.some(m => m.winner && m.p1 && m.p2));
+    bracket = hasRealResults ? old.bracket : _generateBracket(players);
   }
 
-  return ref;
+  await updateDoc(doc(db, 'tournaments', old.id), {
+    name, courts, date, dayIdx, weekKey, startHour, endHour, players, bracket,
+  });
 }
