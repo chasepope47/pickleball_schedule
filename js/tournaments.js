@@ -57,7 +57,6 @@ const _PLACEHOLDER_POOL = [
   'The Picklers', 'Net Ninjas', 'Dink Squad', 'Volley Kings',
   'Court Crushers', 'Lob Stars', 'Baseline Crew', 'Kitchen Cats',
   'Smash Pack', 'Rally Squad', 'Ace Team', 'Drop Shot Boys',
-  'Spin Masters', 'Power Dinkers', 'Overhead Heroes', 'Cross Court',
 ];
 
 function _makePlaceholders(count) {
@@ -81,7 +80,6 @@ function _bracketSlots(n) {
 
 function _getRoundLabel(roundIdx, totalRounds, isRR = false) {
   if (isRR) {
-    // If it's the playoffs portion of a hybrid layout
     const fromEnd = totalRounds - 1 - roundIdx;
     if (fromEnd === 0) return 'Playoffs: Final';
     if (fromEnd === 1) return 'Playoffs: Semifinals';
@@ -146,19 +144,17 @@ function _generateRoundRobin(entries) {
     pool.splice(1, 0, pool.pop());
   }
 
-  // Inject placeholder TBD Playoff Rounds right after the Round Robin phase
-  // Semifinals (2 matches) and Final (1 match)
-  rounds.push({ isPlayoff: true, matches: Array.from({ length: 2 }, () => ({ p1: { isTBD: true }, p2: { isTBD: true }, winner: null })) });
-  rounds.push({ isPlayoff: true, matches: Array.from({ length: 1 }, () => ({ p1: null, p2: null, winner: null })) });
+  // Inject structural playoff cuts (Top 4 advance: 2 Semifinal slots + 1 Final championship match)
+  rounds.push({ isPlayoff: true, isSemi: true, matches: Array.from({ length: 2 }, () => ({ p1: { isTBD: true }, p2: { isTBD: true }, winner: null })) });
+  rounds.push({ isPlayoff: true, isFinal: true, matches: Array.from({ length: 1 }, () => ({ p1: null, p2: null, winner: null })) });
 
   return { rounds };
 }
 
-// Calculates standings wins and auto-populates the next structural playoff leg
 function _calculateStandingsAndAdvance(bracket) {
   const standings = {};
 
-  // Count wins only across non-playoff pool rounds
+  // Compute points and aggregate records across pure schedule matches
   bracket.rounds.forEach(round => {
     if (round.isPlayoff) return;
     round.matches.forEach(m => {
@@ -167,7 +163,7 @@ function _calculateStandingsAndAdvance(bracket) {
     });
   });
 
-  // Extract all real teams who participated
+  // Extract entries participating across the structural map
   const registeredTeams = new Map();
   bracket.rounds[0].matches.forEach(m => {
     if (m.p1 && !m.p1.isPlaceholder) registeredTeams.set(m.p1.uid, m.p1);
@@ -178,19 +174,18 @@ function _calculateStandingsAndAdvance(bracket) {
     return (standings[b.uid] || 0) - (standings[a.uid] || 0);
   });
 
-  // Find index of the Semifinals round
-  const semiIndex = bracket.rounds.findIndex(r => r.isPlayoff);
+  const semiIndex = bracket.rounds.findIndex(r => r.isPlayoff && r.isSemi);
   if (semiIndex === -1) return;
 
   const semiMatches = bracket.rounds[semiIndex].matches;
 
-  // Populate Semifinals with Seed #1 vs #4, and #2 vs #3 if available
+  // Map high performance leader cuts dynamically onto Semifinal match trees
   if (sortedLeaderboard.length >= 2) {
-    semiMatches[0].p1 = sortedLeaderboard[0] || { isTBD: true };
-    semiMatches[0].p2 = sortedLeaderboard[3] || sortedLeaderboard[2] || { isTBD: true }; // Fallback if < 4 entries
+    semiMatches[0].p1 = sortedLeaderboard[0] ? { ...sortedLeaderboard[0], seed: 1 } : { isTBD: true };
+    semiMatches[0].p2 = sortedLeaderboard[3] ? { ...sortedLeaderboard[3], seed: 4 } : (sortedLeaderboard[2] ? { ...sortedLeaderboard[2], seed: 3 } : { isTBD: true });
     
-    semiMatches[1].p1 = sortedLeaderboard[1] || { isTBD: true };
-    semiMatches[1].p2 = sortedLeaderboard[2] || { isTBD: true };
+    semiMatches[1].p1 = sortedLeaderboard[1] ? { ...sortedLeaderboard[1], seed: 2 } : { isTBD: true };
+    semiMatches[1].p2 = sortedLeaderboard[2] ? { ...sortedLeaderboard[2], seed: 3 } : { isTBD: true };
   }
 }
 
@@ -218,10 +213,9 @@ async function _advanceWinner(t, roundIdx, matchIdx, winnerUid) {
   match.winner = winner;
 
   if (t.type === 'round_robin') {
-    // Re-evaluate pool points standings and check if playoffs can fill out
+    // Process regular updates across performance indices
     _calculateStandingsAndAdvance(bracket);
 
-    // If we just advanced a Semifinal playoff match winner, cascade them into the Final round
     const currentRound = bracket.rounds[roundIdx];
     if (currentRound.isPlayoff && roundIdx + 1 < bracket.rounds.length) {
       const nextRound = bracket.rounds[roundIdx + 1];
@@ -229,7 +223,6 @@ async function _advanceWinner(t, roundIdx, matchIdx, winnerUid) {
       if (matchIdx === 1) nextRound.matches[0].p2 = winner;
     }
   } else {
-    // Normal bracket elimination logic
     const next = roundIdx + 1;
     if (next < bracket.rounds.length) {
       const ni = Math.floor(matchIdx / 2);
@@ -295,13 +288,14 @@ function _bracketBodyHtml(t) {
           </div>`;
         if (p.isTBD) return `
           <div style="display:flex;align-items:center;gap:8px;padding:7px 10px">
-            <span style="flex:1;font-size:.8rem;color:var(--text-muted);font-style:italic">TBD (Top Win Seeds)</span>
+            <span style="flex:1;font-size:.8rem;color:var(--text-muted);font-style:italic">TBD (Top Win Leaderboard Seeds)</span>
           </div>`;
         const bg  = won ? 'background:rgba(6,182,212,.1)' : '';
         const col = won ? 'color:var(--cyan);font-weight:700' : 'color:var(--text)';
         
         return `
           <div style="display:flex;align-items:center;gap:6px;padding:7px 10px;${bg}">
+            ${p.seed ? `<span style="font-size:.65rem;color:var(--cyan);font-weight:800;margin-right:2px">[#${p.seed}]</span>` : ''}
             <span style="flex:1;font-size:.82rem;${col}">${_displayName(p)}</span>
             ${p.rating != null ? `<span style="font-size:.68rem;color:var(--text-muted);margin-right:4px">${Number(p.rating).toFixed(1)}</span>` : ''}
             ${won  ? '<span style="font-size:.78rem;color:var(--cyan)">✓</span>' : ''}
@@ -476,7 +470,6 @@ async function _cancelTournament(t) {
   await deleteDoc(doc(db, 'tournaments', t.id));
 }
 
-// Replaces a placeholder or TBD slot with a real player/team entry
 async function _doAssignSlot(t, ri, mi, side, entry) {
   const bracket = JSON.parse(JSON.stringify(t.bracket));
   bracket.rounds[ri].matches[mi][side] = entry;
@@ -502,7 +495,6 @@ async function _doAssignSlot(t, ri, mi, side, entry) {
     }
   });
 
-  // Re-verify standings if names are swapped inside an active matrix pool match
   if (t.type === 'round_robin') {
     _calculateStandingsAndAdvance(bracket);
   }
@@ -516,7 +508,6 @@ async function _doAssignSlot(t, ri, mi, side, entry) {
   if (snap.exists()) _openTournamentModal({ id: t.id, ...snap.data() });
 }
 
-// Opens a picker so staff can assign or edit a player/team to a bracket slot
 async function _openSlotAssignment(t, ri, mi, side) {
   const fmt = t.format || 'singles';
   const available = Array.isArray(t.players) ? [...t.players] : [];
