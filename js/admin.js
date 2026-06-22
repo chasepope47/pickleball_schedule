@@ -582,6 +582,8 @@ async function _renderTournamentsForm() {
                     <option value="1" ${tCurrentExtra === 1 ? 'selected' : ''}>+1 Round</option>
                     <option value="2" ${tCurrentExtra === 2 ? 'selected' : ''}>+2 Rounds</option>
                     <option value="3" ${tCurrentExtra === 3 ? 'selected' : ''}>+3 Rounds</option>
+                    <option value="4" ${tCurrentExtra === 4 ? 'selected' : ''}>+4 Rounds</option>
+                    <option value="5" ${tCurrentExtra === 5 ? 'selected' : ''}>+5 Rounds</option>
                   </select>
                 </div>
                 <div style="display:flex;gap:8px;margin-top:12px">
@@ -675,6 +677,8 @@ async function _renderTournamentsForm() {
               <option value="1">+1 Round (doubles the bracket slots)</option>
               <option value="2">+2 Rounds (4× the bracket slots)</option>
               <option value="3">+3 Rounds (8× the bracket slots)</option>
+              <option value="4">+4 Rounds (16× the bracket slots)</option>
+              <option value="5">+5 Rounds (32× the bracket slots)</option>
             </select>
           </div>
           <button class="btn btn-primary btn-full" id="doTournamentBtn" style="margin-top:12px">Lock Schedule</button>

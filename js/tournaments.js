@@ -330,6 +330,10 @@ function _openTournamentModal(t) {
          ? t.players.map(p => `<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:.85rem">${p.firstName} ${p.lastName}</div>`).join('')
          : '<p style="color:var(--text-muted);font-size:.85rem">No roster set.</p>'}`;
 
+  const champion = hasBracket
+    ? t.bracket.rounds[t.bracket.rounds.length - 1].matches[0]?.winner
+    : null;
+
   const actions = [makeBtn('Close', 'btn-secondary', closeModal)];
   if (_isStaff()) {
     if (hasBracket && !champion) {
