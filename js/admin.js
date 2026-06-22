@@ -519,6 +519,17 @@ async function _renderTournamentsForm() {
                   <label>Tournament Name</label>
                   <input type="text" id="editTName" value="${t.name.replace(/"/g, '&quot;')}" />
                 </div>
+                <div class="form-group">
+                  <label>Format</label>
+                  <div style="display:flex;gap:20px;padding:6px 0">
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem">
+                      <input type="radio" name="editFormat" value="singles" ${(t.format || 'singles') === 'singles' ? 'checked' : ''}> Singles (1v1)
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:.85rem">
+                      <input type="radio" name="editFormat" value="doubles" ${t.format === 'doubles' ? 'checked' : ''}> Doubles (2v2)
+                    </label>
+                  </div>
+                </div>
                 <div class="form-row">
                   <div class="form-group">
                     <label>Courts</label>
@@ -590,6 +601,17 @@ async function _renderTournamentsForm() {
             <label>Tournament Name</label>
             <input type="text" id="tName" placeholder="e.g., SafeStreets Summer Classic" />
           </div>
+          <div class="form-group">
+            <label>Format</label>
+            <div style="display:flex;gap:20px;padding:6px 0">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input type="radio" name="tFormat" value="singles" checked> Singles (1v1)
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input type="radio" name="tFormat" value="doubles"> Doubles (2v2)
+              </label>
+            </div>
+          </div>
           <div class="form-row">
             <div class="form-group">
               <label>Courts</label>
@@ -658,6 +680,7 @@ async function _renderTournamentsForm() {
       const startHour = parseInt(document.getElementById('editTStart').value);
       const endHour   = parseInt(document.getElementById('editTEnd').value);
       const courts    = Array.from(document.querySelectorAll('.edit-court-cb:checked')).map(cb => parseInt(cb.value));
+      const format    = document.querySelector('input[name="editFormat"]:checked')?.value || 'singles';
       const selected  = Array.from(document.querySelectorAll('.edit-player-cb:checked')).map(cb => ({ uid: cb.value, name: cb.dataset.name }));
 
       if (!name)               return showToast('Please provide a tournament name.', 'error');
@@ -665,6 +688,8 @@ async function _renderTournamentsForm() {
       if (courts.length === 0) return showToast('Please select at least one court.', 'error');
       if (startHour >= endHour) return showToast('End time must be after start time.', 'error');
       if (selected.length === 0) return showToast('Please select at least one player.', 'error');
+      if (format === 'doubles' && selected.length < 4)       return showToast('Doubles needs at least 4 players (2 teams).', 'error');
+      if (format === 'doubles' && selected.length % 2 !== 0) return showToast('Doubles needs an even number of players.', 'error');
 
       saveBtn.disabled = true;
       saveBtn.textContent = 'Saving…';
@@ -683,7 +708,7 @@ async function _renderTournamentsForm() {
         });
 
         await updateTournamentRecord(t, {
-          name, courts, date: dateStr, dayIdx: targetDayIdx,
+          name, courts, format, date: dateStr, dayIdx: targetDayIdx,
           weekKey: targetWeekKey, startHour, endHour, players: rosterPlayers,
         });
 
@@ -730,6 +755,7 @@ async function _renderTournamentsForm() {
       const startHour = parseInt(document.getElementById('tStart').value);
       const endHour   = parseInt(document.getElementById('tEnd').value);
       const courts    = Array.from(document.querySelectorAll('.t-court-cb:checked')).map(cb => parseInt(cb.value));
+      const format    = document.querySelector('input[name="tFormat"]:checked')?.value || 'singles';
       const selected  = Array.from(document.querySelectorAll('.t-player-cb:checked')).map(cb => ({ uid: cb.value, name: cb.dataset.name }));
 
       if (!name)               return showToast('Please provide a tournament name.', 'error');
@@ -737,6 +763,8 @@ async function _renderTournamentsForm() {
       if (courts.length === 0) return showToast('Please select at least one court.', 'error');
       if (startHour >= endHour) return showToast('End time must be after start time.', 'error');
       if (selected.length === 0) return showToast('Please select at least one player.', 'error');
+      if (format === 'doubles' && selected.length < 4)       return showToast('Doubles needs at least 4 players (2 teams).', 'error');
+      if (format === 'doubles' && selected.length % 2 !== 0) return showToast('Doubles needs an even number of players.', 'error');
 
       const createBtn = document.getElementById('doTournamentBtn');
       createBtn.disabled = true;
@@ -756,7 +784,7 @@ async function _renderTournamentsForm() {
         });
 
         await createTournamentRecord({
-          name, courts, date: dateStr, dayIdx: targetDayIdx,
+          name, courts, format, date: dateStr, dayIdx: targetDayIdx,
           weekKey: targetWeekKey, startHour, endHour, players: rosterPlayers,
         });
 

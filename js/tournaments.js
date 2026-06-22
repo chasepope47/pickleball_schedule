@@ -121,6 +121,22 @@ function _generateBracket(players) {
   return { rounds };
 }
 
+function _pairForDoubles(players) {
+  const shuffled = [...players].sort(() => Math.random() - 0.5);
+  const teams = [];
+  for (let i = 0; i + 1 < shuffled.length; i += 2) {
+    const a = shuffled[i], b = shuffled[i + 1];
+    teams.push({
+      uid:       `${a.uid}__${b.uid}`,
+      firstName: `${a.firstName} ${a.lastName}`,
+      lastName:  `& ${b.firstName} ${b.lastName}`,
+      rating:    ((a.rating || 3.0) + (b.rating || 3.0)) / 2,
+      players:   [a, b],
+    });
+  }
+  return teams;
+}
+
 async function _advanceWinner(t, roundIdx, matchIdx, winnerUid) {
   const bracket = JSON.parse(JSON.stringify(t.bracket));
   const match = bracket.rounds[roundIdx].matches[matchIdx];
@@ -254,9 +270,7 @@ function _renderSidebar(upcoming) {
             <span>${_courtsLabel(t)}</span>
           </div>
           <div style="${_TIME_STYLE}">${_fmtH(t.startHour)} – ${_fmtH(t.endHour)}</div>
-          ${status
-            ? `<div style="${_COUNT_STYLE}">${status}</div>`
-            : `<div style="${_COUNT_STYLE}">${(t.players || []).length} player${(t.players || []).length !== 1 ? 's' : ''}</div>`}
+          <div style="${_COUNT_STYLE}">${t.format === 'doubles' ? 'Doubles' : 'Singles'}${status ? ' · ' + status : ' · ' + (t.players || []).length + ' players'}</div>
         </div>`;
     }).join('')}`;
 
@@ -297,7 +311,7 @@ function _openTournamentModal(t) {
 
   setModal({
     title: t.name,
-    sub:   `${_fmtDate(t.date)} · ${_courtsLabel(t)} · ${_fmtH(t.startHour)}–${_fmtH(t.endHour)}`,
+    sub:   `${_fmtDate(t.date)} · ${_courtsLabel(t)} · ${_fmtH(t.startHour)}–${_fmtH(t.endHour)} · ${t.format === 'doubles' ? 'Doubles' : 'Singles'}`,
     body,
     actions,
   });
@@ -399,15 +413,17 @@ function _reservationSlots(courts, dayIdx, startHour, endHour, name, players) {
   return updates;
 }
 
-export async function createTournamentRecord({ name, courts, date, dayIdx, weekKey, startHour, endHour, players }) {
-  const bracket = _generateBracket(players);
+export async function createTournamentRecord({ name, courts, date, dayIdx, weekKey, startHour, endHour, players, format }) {
+  const fmt     = format || 'singles';
+  const entries = fmt === 'doubles' ? _pairForDoubles(players) : players;
+  const bracket = _generateBracket(entries);
 
   await setDoc(doc(db, 'reservations', weekKey),
     _reservationSlots(courts, dayIdx, startHour, endHour, name, players),
     { merge: true });
 
   const ref = await addDoc(collection(db, 'tournaments'), {
-    name, courts, date, dayIdx, weekKey, startHour, endHour, players,
+    name, courts, format: fmt, date, dayIdx, weekKey, startHour, endHour, players,
     bracket,
     createdBy: state.currentUser.uid,
     createdAt: serverTimestamp(),
@@ -418,7 +434,9 @@ export async function createTournamentRecord({ name, courts, date, dayIdx, weekK
   return ref;
 }
 
-export async function updateTournamentRecord(old, { name, courts, date, dayIdx, weekKey, startHour, endHour, players }) {
+export async function updateTournamentRecord(old, { name, courts, date, dayIdx, weekKey, startHour, endHour, players, format }) {
+  const fmt = format || 'singles';
+
   // Clear old reservation slots
   const oldCourts = _getCourts(old);
   const clearUpdates = {};
@@ -434,16 +452,20 @@ export async function updateTournamentRecord(old, { name, courts, date, dayIdx, 
     _reservationSlots(courts, dayIdx, startHour, endHour, name, players),
     { merge: true });
 
-  // Regenerate bracket only if roster changed and no real matches have been played
-  const oldUids = [...(old.players || []).map(p => p.uid)].sort().join(',');
-  const newUids = [...players.map(p => p.uid)].sort().join(',');
+  // Regenerate bracket if roster or format changed and no real matches played yet
+  const oldUids      = [...(old.players || []).map(p => p.uid)].sort().join(',');
+  const newUids      = [...players.map(p => p.uid)].sort().join(',');
+  const formatChanged = (old.format || 'singles') !== fmt;
   let bracket = old.bracket;
-  if (oldUids !== newUids) {
+  if (oldUids !== newUids || formatChanged) {
     const hasRealResults = old.bracket?.rounds?.some(r => r.matches.some(m => m.winner && m.p1 && m.p2));
-    bracket = hasRealResults ? old.bracket : _generateBracket(players);
+    if (!hasRealResults) {
+      const entries = fmt === 'doubles' ? _pairForDoubles(players) : players;
+      bracket = _generateBracket(entries);
+    }
   }
 
   await updateDoc(doc(db, 'tournaments', old.id), {
-    name, courts, date, dayIdx, weekKey, startHour, endHour, players, bracket,
+    name, courts, format: fmt, date, dayIdx, weekKey, startHour, endHour, players, bracket,
   });
 }
