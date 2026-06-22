@@ -641,6 +641,7 @@ async function _renderTournamentsForm() {
           </div>
           <div class="form-group">
             <label>Tournament Roster (Select Players)</label>
+            <p style="font-size:.75rem;color:var(--text-muted);margin:0 0 6px">More players = more bracket rounds (4 teams → Semis, 8 → Quarters, 16 → Round of 16…)</p>
             <div style="background:var(--card);padding:10px;border:1px solid var(--border);border-radius:8px;max-height:150px;overflow-y:auto">
               ${players.map(p => `
                 <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer">

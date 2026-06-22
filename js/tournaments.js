@@ -154,6 +154,24 @@ async function _advanceWinner(t, roundIdx, matchIdx, winnerUid) {
   await updateDoc(doc(db, 'tournaments', t.id), { bracket });
 }
 
+// ── Name helpers ─────────────────────────────────────────────────────────────
+
+// "John Smith" → "John S."
+function _abbrev(fullName) {
+  const w = (fullName || '').trim().split(/\s+/);
+  return w.length < 2 ? fullName : `${w[0]} ${w[w.length - 1][0]}.`;
+}
+
+// Works for both singles ("John", "Smith") and doubles teams
+// where firstName="John Smith" and lastName="& Jane Doe"
+function _displayName(p) {
+  if (!p) return '';
+  if (p.lastName?.startsWith('& ')) {
+    return `${_abbrev(p.firstName)} & ${_abbrev(p.lastName.slice(2))}`;
+  }
+  return `${p.firstName}${p.lastName ? ' ' + p.lastName[0] + '.' : ''}`;
+}
+
 // ── Bracket HTML ──────────────────────────────────────────────────────────────
 
 function _bracketBodyHtml(t) {
@@ -171,7 +189,7 @@ function _bracketBodyHtml(t) {
       <div style="text-align:center;padding:10px 0 14px;border-bottom:1px solid var(--border);margin-bottom:14px">
         <div style="font-size:1.4rem">🏆</div>
         <div style="font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--cyan);margin-top:4px">Champion</div>
-        <div style="font-size:1rem;font-weight:700;margin-top:2px">${champion.firstName} ${champion.lastName}</div>
+        <div style="font-size:1rem;font-weight:700;margin-top:2px">${_displayName(champion)}</div>
       </div>`;
   }
 
@@ -194,7 +212,7 @@ function _bracketBodyHtml(t) {
         return `
           <div style="display:flex;align-items:center;gap:6px;padding:7px 10px;${bg}">
             <span style="font-size:.65rem;color:var(--text-muted);min-width:20px;text-align:right">#${p.seed}</span>
-            <span style="flex:1;font-size:.82rem;${col}">${p.firstName} ${p.lastName}</span>
+            <span style="flex:1;font-size:.82rem;${col}">${_displayName(p)}</span>
             ${p.rating != null ? `<span style="font-size:.68rem;color:var(--text-muted)">${Number(p.rating).toFixed(1)}</span>` : ''}
             ${won  ? '<span style="font-size:.78rem;color:var(--cyan)">✓</span>' : ''}
             ${canPick ? `<button data-advance="${ri}:${mi}:${p.uid}" style="font-size:.68rem;padding:2px 7px;background:var(--cyan);color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:700">Win</button>` : ''}
