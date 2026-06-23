@@ -408,11 +408,16 @@ function buildSlots(court) {
   }
 }
 
+let _lastRenderedDay = -1;
+
 export function render() {
   if (!state.currentUser) return;
   buildDayTabs();
-  const grid = document.querySelector('.courts-grid');
-  if (grid) {
+  const grid       = document.querySelector('.courts-grid');
+  const dayChanged = state.selectedDay !== _lastRenderedDay;
+  _lastRenderedDay = state.selectedDay;
+
+  if (grid && dayChanged) {
     grid.classList.add('switching');
     setTimeout(() => {
       buildSlots(1);
