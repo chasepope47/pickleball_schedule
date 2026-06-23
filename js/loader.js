@@ -528,5 +528,57 @@ export function hideLoader() {
   if (loader) loader.classList.add('hidden');
   setTimeout(() => {
     document.getElementById('spaceBg')?.classList.add('photo-visible');
+    _startShootingStars();
+    _startDustParticles();
   }, 400);
+}
+
+// ── Shooting stars ────────────────────────────────────────────────────────────
+
+function _spawnShootingStar() {
+  const el = document.createElement('div');
+  el.className = 'shooting-star';
+  const startX  = Math.random() * 80;
+  const startY  = Math.random() * 50;
+  const angle   = 15 + Math.random() * 20;          // degrees, shallow diagonal
+  const length  = 180 + Math.random() * 260;
+  const dur     = (0.7 + Math.random() * 0.6).toFixed(2);
+  el.style.cssText =
+    `left:${startX}%;top:${startY}%;` +
+    `width:${length}px;` +
+    `--angle:${angle}deg;--dist:${length}px;--shoot-dur:${dur}s;`;
+  document.body.appendChild(el);
+  el.addEventListener('animationend', () => el.remove());
+}
+
+function _startShootingStars() {
+  const fire = () => {
+    _spawnShootingStar();
+    if (Math.random() < 0.3) {              // occasional double
+      setTimeout(_spawnShootingStar, 220);
+    }
+    setTimeout(fire, 3000 + Math.random() * 6000);
+  };
+  setTimeout(fire, 1500);
+}
+
+// ── Moon dust particles ───────────────────────────────────────────────────────
+
+function _startDustParticles() {
+  const container = document.getElementById('spaceBg');
+  if (!container) return;
+  for (let i = 0; i < 18; i++) {
+    const p = document.createElement('div');
+    p.className = 'dust-particle';
+    const size = Math.random() * 3 + 1;
+    const dx   = (Math.random() - 0.5) * 40;
+    p.style.cssText =
+      `left:${(Math.random() * 100).toFixed(1)}%;` +
+      `bottom:${(Math.random() * 18).toFixed(1)}%;` +
+      `width:${size.toFixed(1)}px;height:${size.toFixed(1)}px;` +
+      `--ddur:${(5 + Math.random() * 6).toFixed(1)}s;` +
+      `--ddel:${(Math.random() * 8).toFixed(1)}s;` +
+      `--dx:${dx.toFixed(1)}px;`;
+    container.appendChild(p);
+  }
 }

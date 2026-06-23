@@ -361,6 +361,15 @@ function buildSlots(court) {
     `;
 
     if (clickable) {
+      slot.addEventListener('click', e => {
+        const ripple = document.createElement('div');
+        ripple.className = 'slot-ripple';
+        ripple.style.left = e.offsetX + 'px';
+        ripple.style.top  = e.offsetY + 'px';
+        slot.appendChild(ripple);
+        ripple.addEventListener('animationend', () => ripple.remove());
+      });
+
       if (isPast) {
         const logged = state.matchCache.get(`${court}_${state.selectedDay}_${hour}`);
         if (logged && (amIIn || isStaff())) {
@@ -390,7 +399,13 @@ function buildSlots(court) {
     container.appendChild(slot);
   }
 
+  const prev = freeEl.textContent;
   freeEl.textContent = `${openCount} open`;
+  if (prev !== freeEl.textContent) {
+    freeEl.classList.remove('pop');
+    void freeEl.offsetWidth;
+    freeEl.classList.add('pop');
+  }
 }
 
 export function render() {

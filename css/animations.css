@@ -1,0 +1,159 @@
+/* =============================================================================
+   GLOBAL ANIMATIONS & DYNAMICS
+   ============================================================================= */
+
+/* ── Shooting stars ── */
+.shooting-star {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 1.5px;
+  border-radius: 999px;
+  background: linear-gradient(to right, rgba(255,255,255,0), rgba(255,255,255,0.9) 50%, rgba(200,230,255,0.6));
+  pointer-events: none;
+  z-index: 0;
+  transform-origin: left center;
+  animation: shoot var(--shoot-dur, 0.9s) ease-out forwards;
+}
+
+@keyframes shoot {
+  0%   { opacity: 0;   transform: rotate(var(--angle)) translateX(0)      scaleX(0.2); }
+  8%   { opacity: 1; }
+  100% { opacity: 0;   transform: rotate(var(--angle)) translateX(var(--dist)) scaleX(1); }
+}
+
+/* ── Moon dust particles ── */
+.dust-particle {
+  position: fixed;
+  border-radius: 50%;
+  background: rgba(210, 200, 180, 0.55);
+  pointer-events: none;
+  z-index: 0;
+  animation: dust-rise var(--ddur, 6s) ease-out var(--ddel, 0s) infinite;
+}
+
+@keyframes dust-rise {
+  0%   { transform: translateY(0)    translateX(0)               scale(1);   opacity: 0; }
+  10%  { opacity: 0.7; }
+  80%  { opacity: 0.2; }
+  100% { transform: translateY(-120px) translateX(var(--dx, 20px)) scale(0.3); opacity: 0; }
+}
+
+/* ── Court card entrance (staggered) ── */
+@keyframes court-in {
+  from { opacity: 0; transform: translateY(28px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+
+.court-card {
+  animation: court-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.court-card:nth-child(2) { animation-delay: 0.14s; }
+
+/* ── Court card hover lift ── */
+.court-card {
+  transition: background 0.25s, border-color 0.25s, box-shadow 0.25s, transform 0.22s;
+}
+
+.court-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 32px rgba(0, 212, 232, 0.12), 0 2px 8px rgba(0,0,0,0.3);
+  border-color: rgba(0, 212, 232, 0.2);
+}
+
+/* ── Slot entrance: more dramatic ── */
+@keyframes slot-in {
+  from { opacity: 0; transform: translateX(-12px) scale(0.97); }
+  to   { opacity: 1; transform: translateX(0)     scale(1); }
+}
+
+/* ── Reserve button shimmer ── */
+@keyframes btn-shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+.slot.open .slot-action,
+.slot.joinable .slot-action {
+  background: linear-gradient(
+    100deg,
+    var(--cyan) 0%,
+    var(--cyan) 35%,
+    rgba(255,255,255,0.55) 50%,
+    var(--cyan) 65%,
+    var(--cyan) 100%
+  );
+  background-size: 250% 100%;
+  animation: btn-shimmer 2.6s ease-in-out infinite;
+  color: #000;
+}
+
+/* ── Modal: spring entrance ── */
+@keyframes modal-spring {
+  0%   { opacity: 0; transform: translateY(30px) scale(0.94); }
+  60%  { opacity: 1; transform: translateY(-4px) scale(1.01); }
+  80%  { transform: translateY(2px) scale(0.995); }
+  100% { transform: translateY(0)   scale(1); }
+}
+
+.modal {
+  animation: modal-spring 0.38s cubic-bezier(0.22, 1, 0.36, 1) both !important;
+}
+
+/* ── Slot click ripple ── */
+@keyframes slot-ripple {
+  from { transform: scale(0);   opacity: 0.45; }
+  to   { transform: scale(2.8); opacity: 0; }
+}
+
+.slot-ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(0, 212, 232, 0.35);
+  width: 60px;
+  height: 60px;
+  margin: -30px;
+  pointer-events: none;
+  animation: slot-ripple 0.55s ease-out forwards;
+}
+
+.slot { position: relative; overflow: hidden; }
+
+/* ── Header logo ambient glow ── */
+@keyframes logo-pulse {
+  0%, 100% { filter: drop-shadow(0 0 6px rgba(0,212,232,0.4));  }
+  50%       { filter: drop-shadow(0 0 18px rgba(0,212,232,0.85)); }
+}
+
+.logo-badge {
+  animation: logo-pulse 3.5s ease-in-out infinite;
+}
+
+/* ── "X open" badge count pop ── */
+@keyframes badge-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.28); }
+  70%  { transform: scale(0.94); }
+  100% { transform: scale(1); }
+}
+
+.slots-free.pop {
+  animation: badge-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ── Day tab click bounce ── */
+.day-tab:active {
+  transform: scale(0.91) translateY(1px) !important;
+  transition: transform 0.08s ease !important;
+}
+
+/* ── Week bar fade-in on load ── */
+@keyframes bar-in {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.week-bar  { animation: bar-in 0.5s ease 0.1s both; }
+.day-tabs  { animation: bar-in 0.5s ease 0.2s both; }
+.legend    { animation: bar-in 0.5s ease 0.3s both; }
