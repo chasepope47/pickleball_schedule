@@ -8,12 +8,23 @@ header {
   padding: 16px 28px;
   display: flex;
   align-items: center;
-  gap: 16px;
   box-shadow: 0 0 30px rgba(0, 212, 232, 0.06);
   position: sticky;
   top: 0;
   z-index: 50;
   transition: background 0.25s, border-color 0.25s;
+}
+
+/* Center group: logo + text, absolutely centered in the header */
+.header-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  pointer-events: none; /* let clicks pass through to buttons behind */
 }
 
 .logo-badge {
@@ -27,6 +38,7 @@ header {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  pointer-events: auto;
 }
 
 .logo-badge svg {
@@ -42,12 +54,14 @@ header {
   font-size: 1.4rem;
   font-weight: 800;
   color: var(--text);
+  white-space: nowrap;
 }
 
 .header-text p {
   font-size: 0.78rem;
   color: var(--cyan);
   margin-top: 1px;
+  white-space: nowrap;
 }
 
 .header-right {
@@ -177,3 +191,16 @@ header {
 }
 
 .btn-logout:hover { background: var(--red); color: #fff; }
+
+/* On narrow screens, switch to normal flow so the title doesn't collide with buttons */
+@media (max-width: 600px) {
+  .header-center {
+    position: static;
+    transform: none;
+    flex: 1;
+    min-width: 0;
+    margin-right: 8px;
+  }
+  .header-text h1  { font-size: 1.1rem; }
+  .header-text p   { display: none; }
+}
