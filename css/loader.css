@@ -26,7 +26,7 @@
   transition: opacity 1.6s ease;
 }
 
-/* Layer 2: sharp image at full contain + vignette on top */
+/* Layer 2: sharp image covering full viewport + vignette on top */
 .space-bg::after {
   content: '';
   position: absolute;
@@ -38,7 +38,7 @@
       rgba(4, 6, 14, 0.48) 62%,
       rgba(4, 6, 14, 0.82) 100%
     ),
-    url('../moon-bg.jpg') center center / contain no-repeat;
+    url('../moon-bg.jpg') center center / cover no-repeat;
   filter: brightness(0.52) saturate(1.15) contrast(1.06);
   opacity: 0;
   transition: opacity 1.6s ease;
