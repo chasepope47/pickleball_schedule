@@ -9,7 +9,7 @@ import { setModal, closeModal, makeBtn, showToast } from './ui.js';
 import { getInitials, ratingOptions, esc } from './utils.js';
 import { renderAdminDeptContent } from './departments.js';
 import { createTournamentRecord, updateTournamentRecord, refreshTournamentSidebar } from './tournaments.js';
-import { BADGES } from './constants.js';
+import { BADGES, WAIVER_BODY_HTML } from './constants.js';
 
 // ── Secondary Firebase app (creates users without signing out the current user) ─
 
@@ -197,6 +197,106 @@ async function _loadManagement() {
 
 // ── Waivers view ──────────────────────────────────────────────────────────────
 
+function _fmtWaiverDate(ts) {
+  if (!ts) return 'Date unknown';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function _downloadWaiver(p) {
+  const sigName  = p.waiverSignatureName || `${p.firstName} ${p.lastName}`;
+  const dateStr  = _fmtWaiverDate(p.waiverSignedAt);
+  const fullName = `${p.firstName} ${p.lastName}`;
+
+  const waiverText = WAIVER_BODY_HTML
+    .replace(/<p class="waiver-title">(.*?)<\/p>/s, '<h2 style="font-size:1.1rem;margin:0 0 16px">$1</h2>')
+    .replace(/<p><strong>(.*?)<\/strong>(.*?)<\/p>/gs, '<p><strong>$1</strong>$2</p>');
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Waiver — ${fullName}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&display=swap" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, Helvetica, sans-serif; color: #111; padding: 48px 56px; max-width: 760px; margin: 0 auto; }
+    .doc-header { display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 2px solid #111; padding-bottom: 16px; margin-bottom: 28px; }
+    .org-name { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.01em; }
+    .org-sub  { font-size: 0.78rem; color: #555; margin-top: 3px; }
+    .doc-meta { text-align: right; font-size: 0.75rem; color: #666; line-height: 1.6; }
+    .waiver-body p { font-size: 0.88rem; line-height: 1.75; color: #222; margin-bottom: 12px; }
+    .waiver-body h2 { font-size: 1rem; font-weight: 700; margin-bottom: 14px; }
+    .sig-block { margin-top: 44px; padding-top: 24px; border-top: 1px solid #ccc; }
+    .sig-block-title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #888; margin-bottom: 20px; }
+    .sig-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px 32px; }
+    .sig-field { display: flex; flex-direction: column; gap: 5px; }
+    .sig-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: #888; }
+    .sig-value { font-size: 0.88rem; font-weight: 600; padding-bottom: 4px; border-bottom: 1px solid #bbb; min-height: 28px; }
+    .sig-cursive { font-family: 'Dancing Script', 'Brush Script MT', cursive; font-size: 1.7rem; font-weight: 600; color: #005fa3; border-bottom: 1.5px solid #005fa3; padding-bottom: 2px; }
+    .doc-footer { margin-top: 48px; font-size: 0.68rem; color: #aaa; border-top: 1px solid #eee; padding-top: 12px; text-align: center; }
+    @media print {
+      body { padding: 0; }
+      @page { margin: 28mm 22mm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="doc-header">
+    <div>
+      <div class="org-name">SafeStreets</div>
+      <div class="org-sub">Pickleball Court Reservations</div>
+    </div>
+    <div class="doc-meta">
+      <div><strong>Signed Liability Waiver</strong></div>
+      <div>Document ID: ${p.uid.slice(0, 8).toUpperCase()}</div>
+      <div>Submitted: ${dateStr}</div>
+    </div>
+  </div>
+
+  <div class="waiver-body">${waiverText}</div>
+
+  <div class="sig-block">
+    <div class="sig-block-title">Electronic Signature</div>
+    <div class="sig-grid">
+      <div class="sig-field">
+        <div class="sig-label">Participant Name</div>
+        <div class="sig-value">${fullName}</div>
+      </div>
+      <div class="sig-field">
+        <div class="sig-label">Email</div>
+        <div class="sig-value">${p.email || '—'}</div>
+      </div>
+      <div class="sig-field" style="grid-column:1/-1">
+        <div class="sig-label">Signature</div>
+        <div class="sig-cursive">${sigName}</div>
+      </div>
+      <div class="sig-field">
+        <div class="sig-label">Date Signed</div>
+        <div class="sig-value">${dateStr}</div>
+      </div>
+      <div class="sig-field">
+        <div class="sig-label">Method</div>
+        <div class="sig-value">Electronic — SafeStreets Web App</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="doc-footer">
+    This is an electronically signed document. Submitted via the SafeStreets scheduling system. For internal use only.
+  </div>
+
+  <script>window.onload = () => window.print();<\/script>
+</body>
+</html>`;
+
+  const blob = new Blob([html], { type: 'text/html' });
+  const url  = URL.createObjectURL(blob);
+  const win  = window.open(url, '_blank');
+  if (win) win.onunload = () => URL.revokeObjectURL(url);
+}
+
 async function _loadWaivers() {
   const content = document.getElementById('adminContent');
   if (!content) return;
@@ -212,21 +312,18 @@ async function _loadWaivers() {
     const signed   = players.filter(p => p.waiverSigned);
     const unsigned = players.filter(p => !p.waiverSigned);
 
-    function fmtDate(ts) {
-      if (!ts) return 'Date unknown';
-      const d = ts.toDate ? ts.toDate() : new Date(ts);
-      return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    }
-
     const signedHtml = signed.map(p => `
-      <div class="waiver-record signed">
+      <div class="waiver-record signed" data-uid="${p.uid}">
         <div class="waiver-record-info">
           <div class="waiver-record-name">${esc(p.firstName)} ${esc(p.lastName)}</div>
           <div class="waiver-record-email">${esc(p.email || '')}</div>
-          <div class="waiver-record-date">Signed ${fmtDate(p.waiverSignedAt)}</div>
+          <div class="waiver-record-date">Signed ${_fmtWaiverDate(p.waiverSignedAt)}</div>
         </div>
         <div class="waiver-sig-display">${esc(p.waiverSignatureName || p.firstName + ' ' + p.lastName)}</div>
-        <span class="admin-badge active" style="flex-shrink:0">✓ Signed</span>
+        <div class="waiver-record-actions">
+          <span class="admin-badge active">✓ Signed</span>
+          <button class="btn waiver-download-btn" data-uid="${p.uid}" title="Download PDF">⬇ Download</button>
+        </div>
       </div>`).join('');
 
     const unsignedHtml = unsigned.map(p => `
@@ -251,6 +348,13 @@ async function _loadWaivers() {
         <div class="waiver-list">${unsignedHtml}</div>` : ''}
       ${players.length === 0 ? '<p style="text-align:center;color:var(--text-muted);padding:20px 0">No users found.</p>' : ''}
     `;
+
+    content.querySelectorAll('.waiver-download-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const p = players.find(u => u.uid === btn.dataset.uid);
+        if (p) _downloadWaiver(p);
+      });
+    });
   } catch (err) {
     console.error('Waivers load failed:', err);
     content.innerHTML =

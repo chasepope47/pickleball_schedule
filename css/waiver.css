@@ -251,8 +251,35 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 180px;
+  max-width: 160px;
   flex-shrink: 0;
   padding: 2px 8px;
   border-bottom: 1px solid var(--cyan-border);
+}
+
+.waiver-record-actions {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.waiver-download-btn {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--cyan-border);
+  background: var(--cyan-bg);
+  color: var(--cyan);
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.waiver-download-btn:hover {
+  background: var(--cyan);
+  color: #000;
+  border-color: var(--cyan);
 }
