@@ -6,7 +6,7 @@ import {
 } from './firebase.js';
 import { state } from './state.js';
 import { setModal, closeModal, makeBtn, showToast } from './ui.js';
-import { getInitials, ratingOptions } from './utils.js';
+import { getInitials, ratingOptions, esc } from './utils.js';
 import { renderAdminDeptContent } from './departments.js';
 import { createTournamentRecord, updateTournamentRecord, refreshTournamentSidebar } from './tournaments.js';
 import { BADGES } from './constants.js';
@@ -177,8 +177,8 @@ async function _loadManagement() {
             <div class="mgmt-admin-row${isMe ? ' mgmt-admin-me' : ''}">
               <div class="mgmt-admin-avatar" style="background:${color}22;color:${color}">${avatar}</div>
               <div class="mgmt-admin-info">
-                <div class="mgmt-admin-name">${p.firstName} ${p.lastName}${isMe ? ' <span class="admin-you">(you)</span>' : ''}</div>
-                <div class="mgmt-admin-email">${p.email || ''}</div>
+                <div class="mgmt-admin-name">${esc(p.firstName)} ${esc(p.lastName)}${isMe ? ' <span class="admin-you">(you)</span>' : ''}</div>
+                <div class="mgmt-admin-email">${esc(p.email)}</div>
               </div>
               <span class="admin-badge ${ROLE_CLASS[p.role] || 'role-admin'}">
                 ${ROLE_LABEL[p.role] || p.role}
@@ -245,8 +245,8 @@ function _userRowHtml(p) {
     <div class="admin-user-row ${isBlocked ? 'is-blocked' : ''}">
       <div class="admin-avatar ${p.photoUrl ? 'has-photo' : ''}">${avatar}</div>
       <div class="admin-user-info">
-        <div class="admin-user-name">${p.firstName} ${p.lastName}</div>
-        <div class="admin-user-meta">${p.email || '—'} · ★${p.rating || '—'} · ${p.wins||0}W ${p.losses||0}L</div>
+        <div class="admin-user-name">${esc(p.firstName)} ${esc(p.lastName)}</div>
+        <div class="admin-user-meta">${esc(p.email) || '—'} · ★${p.rating || '—'} · ${p.wins||0}W ${p.losses||0}L</div>
         <div class="admin-user-badges">${statusBadge}${roleBadge}</div>
       </div>
       <div class="admin-user-actions">${actions}</div>
@@ -264,8 +264,8 @@ function _confirmBlock(player, blocking) {
     sub:   player ? `${player.firstName} ${player.lastName}` : '',
     body: `<p style="font-size:.88rem;color:var(--text-dim)">
       ${blocking
-        ? `<strong>${player.firstName}</strong> will be unable to access the app and signed out on their next visit.`
-        : `<strong>${player.firstName}</strong> will regain full access to the app.`}
+        ? `<strong>${esc(player.firstName)}</strong> will be unable to access the app and signed out on their next visit.`
+        : `<strong>${esc(player.firstName)}</strong> will regain full access to the app.`}
     </p>`,
     actions: [
       makeBtn('Cancel', 'btn-secondary', _reopenWide),
@@ -294,7 +294,7 @@ function _confirmDelete(player) {
     sub:   `${player.firstName} ${player.lastName}`,
     body: `
       <p style="font-size:.88rem;color:var(--text-dim);margin-bottom:10px">
-        This removes <strong>${player.firstName} ${player.lastName}</strong>'s profile and data.
+        This removes <strong>${esc(player.firstName)} ${esc(player.lastName)}</strong>'s profile and data.
       </p>
       <p style="font-size:.8rem;color:var(--red)">This cannot be undone.</p>
     `,
@@ -327,10 +327,10 @@ function _confirmRole(player, newRole) {
     sub:   `${player.firstName} ${player.lastName}`,
     body: `<p style="font-size:.88rem;color:var(--text-dim)">
       ${newRole === 'admin'
-        ? `<strong>${player.firstName}</strong> will be able to manage all users including other managers and admins.`
+        ? `<strong>${esc(player.firstName)}</strong> will be able to manage all users including other managers and admins.`
         : newRole === 'manager'
-        ? `<strong>${player.firstName}</strong> will be able to manage users and create accounts, but cannot act on admins.`
-        : `<strong>${player.firstName}</strong> will be a regular user with no management access.`}
+        ? `<strong>${esc(player.firstName)}</strong> will be able to manage users and create accounts, but cannot act on admins.`
+        : `<strong>${esc(player.firstName)}</strong> will be a regular user with no management access.`}
     </p>`,
     actions: [
       makeBtn('Cancel', 'btn-secondary', _reopenWide),
@@ -516,10 +516,10 @@ async function _submitCreate() {
       content.innerHTML = `
         <div class="admin-created-card">
           <p class="admin-created-title">✓ Account Created</p>
-          <div class="admin-created-row"><strong>Name</strong><span>${firstName} ${lastName}</span></div>
-          <div class="admin-created-row"><strong>Email</strong><span>${email}</span></div>
-          <div class="admin-created-row"><strong>Role</strong><span>${ROLE_LABELS[role]}</span></div>
-          <div class="admin-created-row"><strong>Temp Password</strong><span class="mono">${tempPass}</span></div>
+          <div class="admin-created-row"><strong>Name</strong><span>${esc(firstName)} ${esc(lastName)}</span></div>
+          <div class="admin-created-row"><strong>Email</strong><span>${esc(email)}</span></div>
+          <div class="admin-created-row"><strong>Role</strong><span>${esc(ROLE_LABELS[role])}</span></div>
+          <div class="admin-created-row"><strong>Temp Password</strong><span class="mono">${esc(tempPass)}</span></div>
           <p class="admin-created-hint">Share these credentials with the user. They should change their password after first sign-in.</p>
         </div>
         <button class="btn btn-secondary" id="createAnotherBtn" style="width:100%;margin-top:12px">Create Another Account</button>
@@ -588,7 +588,7 @@ async function _renderTournamentsForm() {
                 <div style="font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--cyan);margin-bottom:12px">Edit Tournament</div>
                 <div class="form-group">
                   <label>Tournament Name</label>
-                  <input type="text" id="editTName" value="${t.name.replace(/"/g, '&quot;')}" />
+                  <input type="text" id="editTName" value="${esc(t.name)}" />
                 </div>
                 <div class="form-group">
                   <label>Tournament Style</label>
@@ -644,8 +644,8 @@ async function _renderTournamentsForm() {
                   <div style="background:var(--hover);padding:10px;border:1px solid var(--border);border-radius:8px;max-height:130px;overflow-y:auto">
                     ${players.map(p => `
                       <label style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer">
-                        <input type="checkbox" class="edit-player-cb" value="${p.uid}" data-name="${p.firstName} ${p.lastName}" ${existingUids.has(p.uid) ? 'checked' : ''} />
-                        <span style="font-size:.85rem">${p.firstName} ${p.lastName}</span>
+                        <input type="checkbox" class="edit-player-cb" value="${p.uid}" data-name="${esc(p.firstName)} ${esc(p.lastName)}" ${existingUids.has(p.uid) ? 'checked' : ''} />
+                        <span style="font-size:.85rem">${esc(p.firstName)} ${esc(p.lastName)}</span>
                       </label>`).join('')}
                   </div>
                 </div>
@@ -671,7 +671,7 @@ async function _renderTournamentsForm() {
           return `
             <div class="dept-admin-row" style="flex-wrap:wrap;gap:6px">
               <div class="dept-admin-info">
-                <div class="dept-admin-name">${t.name}</div>
+                <div class="dept-admin-name">${esc(t.name)}</div>
                 <div class="dept-admin-meta">${fmtD(t.date)} · ${courtsLabel(t)} · ${fmtH(t.startHour)}–${fmtH(t.endHour)} · ${typeLabel} · ${(t.players || []).length} players</div>
               </div>
               <div style="display:flex;gap:6px">

@@ -4,7 +4,7 @@ import {
 } from './firebase.js';
 import { state } from './state.js';
 import { COURTS, HOURS, MAX_PLAYERS, DAY_NAMES, DAY_SHORT } from './constants.js';
-import { dayDate, slotDateTime, fmtHour, slotLabel, getInitials, WEEK_MONDAY, WEEK_KEY } from './utils.js';
+import { dayDate, slotDateTime, fmtHour, slotLabel, getInitials, esc, WEEK_MONDAY, WEEK_KEY } from './utils.js';
 import { setModal, closeModal, makeBtn, showToast } from './ui.js';
 import { requireWaiver, applyProfileToHeader } from './profile.js';
 import { openMatchLogModal, openMatchDetailModal } from './matches.js';
@@ -265,7 +265,7 @@ function playerRowHtml(p, isMe) {
   return `
     <div class="modal-player-row ${isMe ? 'is-me' : ''}">
       <div class="p-avatar">${getInitials(p.firstName, p.lastName)}</div>
-      <span class="p-name">${p.firstName} ${p.lastName}${isMe ? ' (you)' : ''}</span>
+      <span class="p-name">${esc(p.firstName)} ${esc(p.lastName)}${isMe ? ' (you)' : ''}</span>
       <span class="p-rating">${p.rating ? `★ ${p.rating}` : '—'}</span>
     </div>
   `;
@@ -337,7 +337,7 @@ function buildSlots(court) {
 
     const chips = players.map(p => {
       const isMe  = p.uid === state.currentUser?.uid;
-      const name  = `${p.firstName} ${p.lastName[0]}.`;
+      const name  = `${esc(p.firstName)} ${esc(p.lastName[0])}.`;
       const stars = p.rating ? ` ★${p.rating}` : '';
       return `<span class="player-chip ${isMe ? 'mine-chip' : 'filled'}">${name}${stars}</span>`;
     });
@@ -581,11 +581,15 @@ export function openManageSlotModal(court, dayIdx, hour) {
       return { ...p, role: found?.role || 'user' };
     });
 
+    const isSysAdmin   = myRole === 'system_admin';
+    const isAdmin      = isSysAdmin || myRole === 'admin';
     const canRemove = (targetRole) =>
-      myRole === 'admin' || (myRole === 'manager' && targetRole !== 'admin');
+      isSysAdmin ||
+      (isAdmin && targetRole !== 'system_admin') ||
+      (myRole === 'manager' && targetRole !== 'admin' && targetRole !== 'system_admin');
 
-    const hasAdmin     = playersWithRoles.some(p => p.role === 'admin');
-    const canClearSlot = myRole === 'admin' || (myRole === 'manager' && !hasAdmin);
+    const hasPrivileged = playersWithRoles.some(p => p.role === 'admin' || p.role === 'system_admin');
+    const canClearSlot  = isAdmin || (myRole === 'manager' && !hasPrivileged);
     const isFull       = players.length >= MAX_PLAYERS;
 
     const available = isPast ? [] : (_allPlayers || [])
@@ -608,7 +612,7 @@ export function openManageSlotModal(court, dayIdx, hour) {
                 return `
                   <div class="modal-player-row ${isMe ? 'is-me' : ''}">
                     <div class="p-avatar">${getInitials(p.firstName, p.lastName)}</div>
-                    <span class="p-name">${p.firstName} ${p.lastName}${isMe ? ' (you)' : ''}</span>
+                    <span class="p-name">${esc(p.firstName)} ${esc(p.lastName)}${isMe ? ' (you)' : ''}</span>
                     <span class="p-rating">${p.rating ? `★ ${p.rating}` : '—'}</span>
                     ${removeBtn}
                   </div>`;
@@ -623,7 +627,7 @@ export function openManageSlotModal(court, dayIdx, hour) {
             <div style="display:flex;gap:8px;align-items:center">
               <select id="addToSlotSelect" style="flex:1">
                 <option value="">— select player —</option>
-                ${available.map(ap => `<option value="${ap.uid}">${ap.firstName} ${ap.lastName}${ap.rating ? ' ★' + ap.rating : ''}</option>`).join('')}
+                ${available.map(ap => `<option value="${ap.uid}">${esc(ap.firstName)} ${esc(ap.lastName)}${ap.rating ? ' ★' + ap.rating : ''}</option>`).join('')}
               </select>
               <button class="btn btn-primary" id="addToSlotBtn" style="padding:8px 14px;white-space:nowrap;flex-shrink:0">Add</button>
             </div>

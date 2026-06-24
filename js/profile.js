@@ -1,7 +1,7 @@
 import { db, doc, getDoc, setDoc, auth, signOut, updatePassword } from './firebase.js';
 import { state } from './state.js';
 import { BADGES, WAIVER_BODY_HTML } from './constants.js';
-import { getInitials, resizeImage } from './utils.js';
+import { getInitials, resizeImage, esc } from './utils.js';
 import { setModal, closeModal, makeBtn, showToast } from './ui.js';
 import { getDeptById, openDeptModal } from './departments.js';
 
@@ -130,11 +130,11 @@ export function openEditProfileModal() {
       <div class="form-row">
         <div class="form-group">
           <label for="editFirst">First Name</label>
-          <input type="text" id="editFirst" value="${p.firstName}" maxlength="40" />
+          <input type="text" id="editFirst" value="${esc(p.firstName)}" maxlength="40" />
         </div>
         <div class="form-group">
           <label for="editLast">Last Name</label>
-          <input type="text" id="editLast" value="${p.lastName}" maxlength="40" />
+          <input type="text" id="editLast" value="${esc(p.lastName)}" maxlength="40" />
         </div>
       </div>
 

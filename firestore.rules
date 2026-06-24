@@ -14,37 +14,45 @@ service cloud.firestore {
         : null;
     }
 
-    // Retrieves the role of the user being acted upon
     function targetUserRole(targetUid) {
       return exists(/databases/$(database)/documents/players/$(targetUid))
         ? get(/databases/$(database)/documents/players/$(targetUid)).data.role
         : null;
     }
 
-    function isAdmin()   { return callerRole() == 'admin';   }
-    function isManager() { return callerRole() == 'manager'; }
+    function isSysAdmin() { return callerRole() == 'system_admin'; }
+    function isAdmin()    { return isSysAdmin() || callerRole() == 'admin'; }
+    function isManager()  { return callerRole() == 'manager'; }
+    function canManage()  { return isAdmin() || isManager(); }
 
-    // Admins and managers can manage users
-    function canManage() { return isAdmin() || isManager(); }
+    // Fields a regular user is NOT allowed to change on their own profile
+    function noPrivilegedFieldChange() {
+      return !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['role', 'status', 'wins', 'losses', 'rating', 'badges', 'createdAt', 'email']);
+    }
 
     // Player profiles
     match /players/{userId} {
-      // Any signed-in user can read player docs (required for leaderboard + reservations)
       allow read: if isSignedIn();
 
-      // Only managers/admins can create profiles (no self-registration)
+      // Only managers/admins/sysadmins can create profiles (no self-registration)
       allow create: if canManage();
 
-      // Users can update their own profile; managers can update non-admin profiles;
-      // admins can update anyone
       allow update: if isSignedIn() && (
-        request.auth.uid == userId ||
-        isAdmin() ||
-        (isManager() && resource.data.role != 'admin')
+        // System admin can update any profile
+        isSysAdmin() ||
+        // Admin can update anyone except system_admin
+        (isAdmin() && resource.data.role != 'system_admin') ||
+        // Manager can update regular users only
+        (isManager() && resource.data.role != 'admin' && resource.data.role != 'system_admin') ||
+        // Users can update their own profile but CANNOT change privileged fields
+        (request.auth.uid == userId && noPrivilegedFieldChange())
       );
 
-      // Managers can delete non-admin profiles; admins can delete anyone
-      allow delete: if isAdmin() || (isManager() && resource.data.role != 'admin');
+      allow delete: if
+        isSysAdmin() ||
+        (isAdmin() && resource.data.role != 'system_admin') ||
+        (isManager() && resource.data.role != 'admin' && resource.data.role != 'system_admin');
     }
 
     // Weekly reservation documents (one per week, keyed YYYY-MM-DD)
@@ -55,16 +63,22 @@ service cloud.firestore {
 
     // Match records
     match /matches/{matchId} {
-      allow read:   if isSignedIn();
-      allow create: if isSignedIn();
-      // Users can edit their own. Managers can edit unless target is Admin. Admins can edit anything.
-      allow update: if isSignedIn() && (
-        resource.data.uid == request.auth.uid || 
-        isAdmin() || 
-        (isManager() && targetUserRole(resource.data.uid) != 'admin')
+      allow read: if isSignedIn();
+
+      // Users can only create match records for themselves; staff can create for anyone
+      allow create: if isSignedIn() && (
+        request.resource.data.uid == request.auth.uid || canManage()
       );
-      // Managers can delete unless target is Admin. Admins can delete anything.
-      allow delete: if isAdmin() || (isManager() && targetUserRole(resource.data.uid) != 'admin');
+
+      allow update: if isSignedIn() && (
+        resource.data.uid == request.auth.uid ||
+        isAdmin() ||
+        (isManager() && targetUserRole(resource.data.uid) != 'admin' && targetUserRole(resource.data.uid) != 'system_admin')
+      );
+
+      allow delete: if
+        isAdmin() ||
+        (isManager() && targetUserRole(resource.data.uid) != 'admin' && targetUserRole(resource.data.uid) != 'system_admin');
     }
 
     // Department collection
@@ -75,7 +89,7 @@ service cloud.firestore {
       allow delete: if canManage();
     }
 
-    // Tournament records (sidebar display + admin management)
+    // Tournament records
     match /tournaments/{tournamentId} {
       allow read:   if isSignedIn();
       allow create: if canManage();

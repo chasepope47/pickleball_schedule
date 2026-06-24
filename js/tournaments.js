@@ -4,6 +4,7 @@ import {
 } from './firebase.js';
 import { state } from './state.js';
 import { setModal, closeModal, makeBtn, showToast } from './ui.js';
+import { esc } from './utils.js';
 
 let _unsubscribe = null;
 
@@ -329,9 +330,9 @@ function _abbrev(fullName) {
 function _displayName(p) {
   if (!p) return '';
   if (p.lastName?.startsWith('& ')) {
-    return `${_abbrev(p.firstName)} & ${_abbrev(p.lastName.slice(2))}`;
+    return esc(`${_abbrev(p.firstName)} & ${_abbrev(p.lastName.slice(2))}`);
   }
-  return `${p.firstName}${p.lastName ? ' ' + p.lastName[0] + '.' : ''}`;
+  return esc(`${p.firstName}${p.lastName ? ' ' + p.lastName[0] + '.' : ''}`);
 }
 
 // ── Conditional Layout Rendering ──────────────────────────────────────────────
@@ -447,7 +448,7 @@ function _renderSidebar(upcoming) {
       const status = _bracketStatus(t);
       return `
         <div class="tournament-card" data-id="${t.id}" style="${_CARD_STYLE}">
-          <div style="${_NAME_STYLE}">${t.name}</div>
+          <div style="${_NAME_STYLE}">${esc(t.name)}</div>
           <div style="${_META_STYLE}">
             <span>${_fmtDate(t.date)}</span>
             <span>${_courtsLabel(t)}</span>
@@ -474,7 +475,7 @@ function _openTournamentModal(t) {
          Roster (${(t.players || []).length})
        </div>
        ${(t.players || []).length > 0
-         ? t.players.map(p => `<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:.85rem">${p.firstName} ${p.lastName}</div>`).join('')
+         ? t.players.map(p => `<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:.85rem">${esc(p.firstName)} ${esc(p.lastName)}</div>`).join('')
          : '<p style="color:var(--text-muted);font-size:.85rem">No roster set.</p>'}`;
 
   const champion = hasBracket && t.type !== 'round_robin'
@@ -607,7 +608,7 @@ async function _openSlotAssignment(t, ri, mi, side) {
   const isEditing = existingEntry && !existingEntry.isPlaceholder && !existingEntry.isTBD;
 
   const opts = available.map(p =>
-    `<option value="${p.uid}">${p.firstName} ${p.lastName}${p.rating ? ' ★' + p.rating : ''}</option>`).join('');
+    `<option value="${p.uid}">${esc(p.firstName)} ${esc(p.lastName)}${p.rating ? ' ★' + p.rating : ''}</option>`).join('');
 
   const backFn = () => getDoc(doc(db, 'tournaments', t.id))
     .then(s => { if (s.exists()) _openTournamentModal({ id: s.id, ...s.data() }); });

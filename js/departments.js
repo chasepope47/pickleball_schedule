@@ -3,7 +3,7 @@ import {
 } from './firebase.js';
 import { state } from './state.js';
 import { setModal, closeModal, makeBtn, showToast } from './ui.js';
-import { getInitials } from './utils.js';
+import { getInitials, esc } from './utils.js';
 
 // ── Cache ────────────────────────────────────────────────────────────────────
 
@@ -62,7 +62,7 @@ function _renderSection() {
   const role      = state.currentProfile?.role;
 
   if (standings.length === 0) {
-    if (role === 'admin' || role === 'manager') {
+    if (role === 'system_admin' || role === 'admin' || role === 'manager') {
       section.style.display = '';
       list.innerHTML = `<p class="dept-empty">No departments yet — create them in the Admin Panel.</p>`;
     } else {
@@ -83,7 +83,7 @@ function _renderSection() {
       <div class="dept-row ${isMe ? 'dept-mine' : ''}" data-dept="${dept.id}" role="button" tabindex="0">
         <div class="dept-rank">${medal}</div>
         <div class="dept-info">
-          <div class="dept-name">${dept.icon ? `${dept.icon} ` : ''}${dept.name}</div>
+          <div class="dept-name">${dept.icon ? `${dept.icon} ` : ''}${esc(dept.name)}</div>
           <div class="dept-meta">${dept.members.length} member${dept.members.length !== 1 ? 's' : ''}</div>
         </div>
         <div class="dept-record">
@@ -123,7 +123,7 @@ export function openDeptModal(deptId) {
           <div class="dept-member-row ${isMe ? 'dept-member-me' : ''}">
             <div class="dept-member-avatar ${p.photoUrl ? 'has-photo' : ''}">${avatar}</div>
             <div class="dept-member-info">
-              <div class="dept-member-name">${p.firstName} ${p.lastName}${isMe ? ' <span class="dept-you-tag">you</span>' : ''}</div>
+              <div class="dept-member-name">${esc(p.firstName)} ${esc(p.lastName)}${isMe ? ' <span class="dept-you-tag">you</span>' : ''}</div>
               <div class="dept-member-stats">★${p.rating || '—'} · ${p.wins || 0}W ${p.losses || 0}L</div>
             </div>
           </div>`;
@@ -159,7 +159,7 @@ function _showDeptList(container) {
   const rows = standings.map(dept => `
     <div class="dept-admin-row">
       <div class="dept-admin-info">
-        <div class="dept-admin-name">${dept.icon ? `${dept.icon} ` : ''}${dept.name}</div>
+        <div class="dept-admin-name">${dept.icon ? `${dept.icon} ` : ''}${esc(dept.name)}</div>
         <div class="dept-admin-meta">
           ${dept.members.length} member${dept.members.length !== 1 ? 's' : ''} · ${dept.wins}W ${dept.losses}L
         </div>
@@ -244,7 +244,7 @@ async function _manageDept(deptId, container) {
       <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--card);border:1px solid var(--border);border-radius:8px;margin-bottom:4px">
         <div class="dept-member-avatar ${p.photoUrl ? 'has-photo' : ''}">${avatar}</div>
         <div style="flex:1;min-width:0">
-          <div class="dept-member-name">${p.firstName} ${p.lastName}</div>
+          <div class="dept-member-name">${esc(p.firstName)} ${esc(p.lastName)}</div>
           <div class="dept-member-stats">★${p.rating || '—'} · ${p.wins || 0}W ${p.losses || 0}L</div>
         </div>
         <button class="admin-btn delete" data-action="remove-member" data-uid="${p.uid}">Remove</button>
@@ -253,13 +253,13 @@ async function _manageDept(deptId, container) {
 
   const addOptions = nonMembers
     .sort((a, b) => `${a.firstName}${a.lastName}`.localeCompare(`${b.firstName}${b.lastName}`))
-    .map(p => `<option value="${p.uid}">${p.firstName} ${p.lastName}${p.department ? ' (⚠ reassigning)' : ''}</option>`)
+    .map(p => `<option value="${p.uid}">${esc(p.firstName)} ${esc(p.lastName)}${p.department ? ' (⚠ reassigning)' : ''}</option>`)
     .join('');
 
   container.innerHTML = `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
       <button class="admin-btn" id="backToDepts">← Back</button>
-      <span style="font-size:.9rem;font-weight:700;color:var(--text)">${dept.name}</span>
+      <span style="font-size:.9rem;font-weight:700;color:var(--text)">${esc(dept.name)}</span>
     </div>
     <div style="max-height:260px;overflow-y:auto">
       ${members.length === 0
@@ -269,7 +269,7 @@ async function _manageDept(deptId, container) {
     ${nonMembers.length > 0 ? `
     <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
       <label style="font-size:.8rem;font-weight:600;color:var(--text-dim);display:block;margin-bottom:6px">
-        Add member to ${dept.name}
+        Add member to ${esc(dept.name)}
       </label>
       <div class="form-row" style="align-items:flex-end;gap:8px">
         <select id="addMemberSelect" style="flex:1">

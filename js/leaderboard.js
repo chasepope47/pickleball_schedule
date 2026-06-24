@@ -1,7 +1,7 @@
 import { db, getDocs, collection } from './firebase.js';
 import { state } from './state.js';
 import { BADGES } from './constants.js';
-import { getInitials } from './utils.js';
+import { getInitials, esc } from './utils.js';
 import { setModal, closeModal, makeBtn } from './ui.js';
 
 function _activeStreakFor(p) {
@@ -54,7 +54,7 @@ export async function openLeaderboard() {
           <span class="lb-rank">${medal}</span>
           <div class="lb-avatar ${p.photoUrl ? 'has-photo' : ''}">${avatar}</div>
           <div class="lb-info">
-            <span class="lb-name">${p.firstName} ${p.lastName}${isMe ? ' (you)' : ''}${badgePips ? ` <span class="lb-badges">${badgePips}</span>` : ''}${streak > 0 ? ` <span title="${streak}-session streak" style="font-size:.85rem">🔥${streak}</span>` : ''}</span>
+            <span class="lb-name">${esc(p.firstName)} ${esc(p.lastName)}${isMe ? ' (you)' : ''}${badgePips ? ` <span class="lb-badges">${badgePips}</span>` : ''}${streak > 0 ? ` <span title="${streak}-session streak" style="font-size:.85rem">🔥${streak}</span>` : ''}</span>
             <span class="lb-rating">★ ${p.rating || '—'}</span>
           </div>
           <div class="lb-record">

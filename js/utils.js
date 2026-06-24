@@ -88,3 +88,12 @@ export function resizeImage(file, size, quality, callback) {
 export function authMsg(code) {
   return AUTH_ERRORS[code] || `Error (${code}). Please try again.`;
 }
+
+export function esc(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}

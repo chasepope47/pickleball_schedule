@@ -3,7 +3,7 @@ import {
 } from './firebase.js';
 import { state } from './state.js';
 import { DAY_NAMES } from './constants.js';
-import { dayDate, fmtHour, getInitials, adjustRating, WEEK_KEY } from './utils.js';
+import { dayDate, fmtHour, getInitials, adjustRating, esc, WEEK_KEY } from './utils.js';
 import { setModal, closeModal, makeBtn, showToast } from './ui.js';
 import {
   setCachedProfile, loadFirestoreProfile, applyProfileToHeader,
@@ -60,7 +60,7 @@ export function openMatchLogModal(court, dayIdx, hour) {
           ${otherPlayers.map(p => `
             <div class="player-rate-row">
               <div class="p-avatar">${getInitials(p.firstName, p.lastName)}</div>
-              <span class="p-rate-name">${p.firstName} ${p.lastName[0]}.</span>
+              <span class="p-rate-name">${esc(p.firstName)} ${esc(p.lastName[0])}.</span>
               <div class="thumb-btns">
                 <button class="thumb-btn up" data-uid="${p.uid}" data-thumb="up" type="button">👍</button>
                 <button class="thumb-btn dn" data-uid="${p.uid}" data-thumb="down" type="button">👎</button>
@@ -224,7 +224,7 @@ export function openMatchDetailModal(match) {
         ${ratedPlayers.map(p => `
           <div class="match-rate-row">
             <div class="p-avatar">${getInitials(p.firstName, p.lastName)}</div>
-            <span class="match-rate-name">${p.firstName} ${p.lastName[0]}.</span>
+            <span class="match-rate-name">${esc(p.firstName)} ${esc(p.lastName[0])}.</span>
             <span class="rate-thumb">${match.playerRatings[p.uid] === 'up' ? '👍' : '👎'}</span>
           </div>`).join('')}
       </div>`
