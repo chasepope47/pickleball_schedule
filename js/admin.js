@@ -10,6 +10,7 @@ import { getInitials, ratingOptions, esc } from './utils.js';
 import { renderAdminDeptContent } from './departments.js';
 import { createTournamentRecord, updateTournamentRecord, refreshTournamentSidebar } from './tournaments.js';
 import { BADGES, WAIVER_BODY_HTML } from './constants.js';
+import { isOnline } from './presence.js';
 
 // ── Secondary Firebase app (creates users without signing out the current user) ─
 
@@ -111,8 +112,10 @@ async function _loadUsers() {
       return;
     }
 
+    const onlineCount = players.filter(isOnline).length;
+    const onlineBadge = `<div class="presence-count"><span class="presence-dot online"></span>${onlineCount} online now</div>`;
     content.innerHTML =
-      `<div class="admin-user-list">${players.map(_userRowHtml).join('')}</div>`;
+      `${onlineBadge}<div class="admin-user-list">${players.map(_userRowHtml).join('')}</div>`;
 
     content.querySelectorAll('[data-action]').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -370,6 +373,7 @@ function _userRowHtml(p) {
   const isMe       = p.uid === state.currentUser?.uid;
   const isBlocked  = p.status === 'blocked';
   const targetRole = p.role || 'user';
+  const online     = isOnline(p);
   const avatar     = p.photoUrl
     ? `<img src="${p.photoUrl}" alt="" />`
     : getInitials(p.firstName, p.lastName);
@@ -414,7 +418,7 @@ function _userRowHtml(p) {
     <div class="admin-user-row ${isBlocked ? 'is-blocked' : ''}">
       <div class="admin-avatar ${p.photoUrl ? 'has-photo' : ''}">${avatar}</div>
       <div class="admin-user-info">
-        <div class="admin-user-name">${esc(p.firstName)} ${esc(p.lastName)}</div>
+        <div class="admin-user-name"><span class="presence-dot ${online ? 'online' : 'offline'}" title="${online ? 'Online now' : 'Offline'}"></span>${esc(p.firstName)} ${esc(p.lastName)}</div>
         <div class="admin-user-meta">${esc(p.email) || '—'} · ★${p.rating || '—'} · ${p.wins||0}W ${p.losses||0}L</div>
         <div class="admin-user-badges">${statusBadge}${roleBadge}</div>
       </div>

@@ -17,6 +17,7 @@ import { wireAdminBtn } from './admin.js';
 import { refreshDeptSection } from './departments.js';
 import { initTournamentSidebar } from './tournaments.js';
 import { initSpaceBackground, revealBackground } from './loader.js';
+import { startPresence, stopPresence } from './presence.js';
 
 const WEAK_PASSWORDS   = ['pickleball', 'pickleball1'];
 let   _lastTypedPassword = null;
@@ -85,6 +86,7 @@ document.getElementById('forgotBtn').addEventListener('click', async () => {
 
 onAuthStateChanged(auth, async (user) => {
   if (!user) {
+    stopPresence();
     state.currentUser    = null;
     state.currentProfile = null;
     state.appInitialized = false;
@@ -140,6 +142,7 @@ onAuthStateChanged(auth, async (user) => {
     setInterval(render, 60_000);
 
     revealBackground();
+    startPresence();
 
     refreshDeptSection().then(() => {
       if (state.currentProfile) applyProfileToHeader(state.currentProfile);

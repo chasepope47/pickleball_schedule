@@ -3,6 +3,7 @@ import { state } from './state.js';
 import { BADGES } from './constants.js';
 import { getInitials, esc } from './utils.js';
 import { setModal, closeModal, makeBtn } from './ui.js';
+import { isOnline } from './presence.js';
 
 function _activeStreakFor(p) {
   if (!(p.streak > 0) || !p.lastPlayedDate) return 0;
@@ -49,10 +50,11 @@ export async function openLeaderboard() {
         : getInitials(p.firstName, p.lastName);
       const badgePips = (p.badges || []).slice(0, 3).map(id => BADGES[id]?.icon || '').join('');
       const streak    = _activeStreakFor(p);
+      const online    = isOnline(p);
       return `
         <div class="leaderboard-row ${isMe ? 'me' : ''}">
           <span class="lb-rank">${medal}</span>
-          <div class="lb-avatar ${p.photoUrl ? 'has-photo' : ''}">${avatar}</div>
+          <div class="lb-avatar ${p.photoUrl ? 'has-photo' : ''}" style="position:relative">${avatar}${online ? '<span class="presence-dot online lb-presence"></span>' : ''}</div>
           <div class="lb-info">
             <span class="lb-name">${esc(p.firstName)} ${esc(p.lastName)}${isMe ? ' (you)' : ''}${badgePips ? ` <span class="lb-badges">${badgePips}</span>` : ''}${streak > 0 ? ` <span title="${streak}-session streak" style="font-size:.85rem">🔥${streak}</span>` : ''}</span>
             <span class="lb-rating">★ ${p.rating || '—'}</span>

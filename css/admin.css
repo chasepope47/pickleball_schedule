@@ -2,6 +2,46 @@
    ADMIN PANEL
    ============================================================================= */
 
+/* ── Presence / online status ── */
+.presence-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  vertical-align: middle;
+  margin-right: 5px;
+}
+.presence-dot.online {
+  background: var(--green, #3ecf8e);
+  box-shadow: 0 0 5px rgba(62, 207, 142, 0.55);
+}
+.presence-dot.offline {
+  background: var(--border);
+}
+.presence-count {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--green, #3ecf8e);
+  padding: 6px 2px 10px;
+}
+.presence-count .presence-dot {
+  margin-right: 0;
+}
+/* Dot positioned on leaderboard avatar */
+.lb-presence {
+  position: absolute;
+  bottom: 1px;
+  right: 1px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--card);
+  margin-right: 0;
+}
+
 /* Wider modal variant used by the admin panel */
 .modal.modal-wide {
   max-width: 680px;
