@@ -18,6 +18,9 @@ import { refreshDeptSection } from './departments.js';
 import { initTournamentSidebar } from './tournaments.js';
 import { initSpaceBackground, revealBackground } from './loader.js';
 
+const WEAK_PASSWORDS   = ['pickleball', 'pickleball1'];
+let   _lastTypedPassword = null;
+
 initSpaceBackground();
 
 // ── Auth overlay helpers ─────────────────────────────────────────────────────
@@ -46,8 +49,10 @@ document.getElementById('loginBtn').addEventListener('click', async () => {
 
   try {
     document.getElementById('loginBtn').textContent = 'Signing in…';
+    _lastTypedPassword = password;
     await signInWithEmailAndPassword(auth, email, password);
   } catch (err) {
+    _lastTypedPassword = null;
     document.getElementById('loginBtn').textContent = 'Sign In →';
     errorEl.textContent = authMsg(err.code);
     errorEl.classList.remove('hidden');
@@ -136,6 +141,17 @@ onAuthStateChanged(auth, async (user) => {
       if (state.currentProfile) applyProfileToHeader(state.currentProfile);
     });
     initTournamentSidebar();
+
+    // Detect weak default passwords typed at login and force a change
+    if (_lastTypedPassword && WEAK_PASSWORDS.includes(_lastTypedPassword.toLowerCase())) {
+      _lastTypedPassword = null;
+      if (!state.currentProfile.mustChangePassword) {
+        state.currentProfile = { ...state.currentProfile, mustChangePassword: true };
+        await setDoc(doc(db, 'players', user.uid), { mustChangePassword: true }, { merge: true });
+      }
+    } else {
+      _lastTypedPassword = null;
+    }
 
     const p = state.currentProfile;
     if (p.mustChangePassword || !p.waiverSigned) {
