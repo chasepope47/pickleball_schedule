@@ -137,7 +137,8 @@ onAuthStateChanged(auth, async (user) => {
     });
     initTournamentSidebar();
 
-    if (state.currentProfile.mustChangePassword) {
+    const p = state.currentProfile;
+    if (p.mustChangePassword || !p.waiverSigned) {
       setTimeout(openFirstLoginModal, 500);
     }
   } else {
