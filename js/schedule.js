@@ -16,7 +16,13 @@ function isStaff() {
   return r === 'system_admin' || r === 'admin' || r === 'manager';
 }
 
-const MAX_RESERVATIONS = 2;
+const MAX_RESERVATIONS  = 2;
+const RESERVE_HOUR_START = 6;   // 6 AM — inclusive
+const RESERVE_HOUR_END   = 18;  // 6 PM — exclusive (slots at 18:00+ are staff-only)
+
+function isOutsideHours(hour) {
+  return !isStaff() && (hour < RESERVE_HOUR_START || hour >= RESERVE_HOUR_END);
+}
 
 function _countMyReservations() {
   const uid = state.currentUser?.uid;
@@ -300,6 +306,8 @@ function buildSlots(court) {
 
     if (isOpen && !isPast) openCount++;
 
+    const restricted = !isPast && !amIIn && isOutsideHours(hour);
+
     let stateClass, actionText, clickable;
     if (isPast) {
       const logged = state.matchCache.get(`${court}_${state.selectedDay}_${hour}`);
@@ -311,8 +319,8 @@ function buildSlots(court) {
         actionText = lt === 'competitive'
           ? (logged.won ? '✓ Win' : '✗ Loss')
           : '🤝 Friendly';
-          
-        if (!amIIn && isStaff()) actionText = '⚙ Edit'; 
+
+        if (!amIIn && isStaff()) actionText = '⚙ Edit';
         clickable = true;
       } else if (amIIn) {
         stateClass = 'past-result';
@@ -323,6 +331,8 @@ function buildSlots(court) {
         actionText = '';
         clickable  = false;
       }
+    } else if (restricted) {
+      stateClass = 'restricted'; actionText = '🔒 Staff Only'; clickable = false;
     } else if (isOpen) {
       stateClass = 'open';     actionText = 'Reserve →'; clickable = true;
     } else if (amIIn) {
@@ -434,6 +444,10 @@ export function render() {
 
 export function openReserveModal(court, dayIdx, hour) {
   if (!requireWaiver(() => openReserveModal(court, dayIdx, hour))) return;
+  if (isOutsideHours(hour)) {
+    showToast('Court reservations are only available 6 AM – 6 PM.', 'error');
+    return;
+  }
   if (!isStaff() && _countMyReservations() >= MAX_RESERVATIONS) {
     showToast(`You can only reserve up to ${MAX_RESERVATIONS} time slots per week.`, 'error');
     return;
@@ -478,6 +492,10 @@ export function openReserveModal(court, dayIdx, hour) {
 
 export function openJoinModal(court, dayIdx, hour, currentPlayers) {
   if (!requireWaiver(() => openJoinModal(court, dayIdx, hour, currentPlayers))) return;
+  if (isOutsideHours(hour)) {
+    showToast('Court reservations are only available 6 AM – 6 PM.', 'error');
+    return;
+  }
   if (!isStaff() && _countMyReservations() >= MAX_RESERVATIONS) {
     showToast(`You can only reserve up to ${MAX_RESERVATIONS} time slots per week.`, 'error');
     return;
