@@ -9,7 +9,7 @@ let _unsubscribe = null;
 
 function _isStaff() {
   const r = state.currentProfile?.role;
-  return r === 'admin' || r === 'manager';
+  return r === 'system_admin' || r === 'admin' || r === 'manager';
 }
 
 function _fmtDate(dateStr) {

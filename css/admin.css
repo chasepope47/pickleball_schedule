@@ -159,6 +159,12 @@
   color: var(--red);
 }
 
+.admin-badge.role-sysadmin {
+  background: rgba(167, 139, 250, 0.12);
+  border: 1px solid rgba(167, 139, 250, 0.4);
+  color: #a78bfa;
+}
+
 .admin-badge.role-admin {
   background: var(--orange-bg);
   border: 1px solid var(--orange-border);
@@ -241,4 +247,64 @@
   color: var(--text-muted);
   margin-top: 10px;
   line-height: 1.5;
+}
+
+/* ── Management tab ── */
+.mgmt-admin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.mgmt-admin-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.mgmt-admin-row.mgmt-admin-me {
+  border-color: var(--cyan-border);
+  background: var(--cyan-bg);
+}
+
+.mgmt-admin-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 800;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.mgmt-admin-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.mgmt-admin-info { flex: 1; min-width: 0; }
+
+.mgmt-admin-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.mgmt-admin-email {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }

@@ -16,7 +16,6 @@ import {
 import { wireAdminBtn } from './admin.js';
 import { refreshDeptSection } from './departments.js';
 import { initTournamentSidebar } from './tournaments.js';
-import { initManagementSection } from './management.js';
 import { initSpaceBackground, revealBackground } from './loader.js';
 
 initSpaceBackground();
@@ -137,7 +136,6 @@ onAuthStateChanged(auth, async (user) => {
       if (state.currentProfile) applyProfileToHeader(state.currentProfile);
     });
     initTournamentSidebar();
-    initManagementSection();
 
     const p = state.currentProfile;
     if (p.mustChangePassword || !p.waiverSigned) {

@@ -13,7 +13,7 @@ const weekDocRef = doc(db, 'reservations', WEEK_KEY);
 
 function isStaff() {
   const r = state.currentProfile?.role;
-  return r === 'admin' || r === 'manager';
+  return r === 'system_admin' || r === 'admin' || r === 'manager';
 }
 
 const MAX_RESERVATIONS = 2;

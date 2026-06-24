@@ -24,14 +24,16 @@ function getSecondaryAuth() {
 
 // ── Role helpers ──────────────────────────────────────────────────────────────
 
-export function isAdmin()   { return state.currentProfile?.role === 'admin';   }
-export function isManager() { return state.currentProfile?.role === 'manager'; }
+export function isSysAdmin() { return state.currentProfile?.role === 'system_admin'; }
+export function isAdmin()    { return isSysAdmin() || state.currentProfile?.role === 'admin'; }
+export function isManager()  { return state.currentProfile?.role === 'manager'; }
 
 function canManageUsers() { return isAdmin() || isManager(); }
 
 function canActOn(targetRole) {
-  if (isAdmin()) return true;             
-  return targetRole !== 'admin';          
+  if (isSysAdmin()) return true;
+  if (isAdmin()) return targetRole !== 'system_admin';
+  return targetRole !== 'admin' && targetRole !== 'system_admin';
 }
 
 // ── Admin button ──────────────────────────────────────────────────────────────
@@ -60,6 +62,7 @@ function _renderShell() {
   document.getElementById('modalBody').innerHTML = `
     <div class="admin-tabs" id="adminTabs">
       <button class="admin-tab active" data-view="users">Users</button>
+      <button class="admin-tab"        data-view="management">👔 Management</button>
       <button class="admin-tab"        data-view="departments">Departments</button>
       <button class="admin-tab"        data-view="tournaments">🏆 Tournaments</button>
       <button class="admin-tab"        data-view="create">+ Create Account</button>
@@ -76,6 +79,7 @@ function _renderShell() {
     document.querySelectorAll('.admin-tab').forEach(t =>
       t.classList.toggle('active', t.dataset.view === _activeView));
     if (_activeView === 'users') _loadUsers();
+    else if (_activeView === 'management') _loadManagement();
     else if (_activeView === 'departments') renderAdminDeptContent(document.getElementById('adminContent'));
     else if (_activeView === 'tournaments') _renderTournamentsForm();
     else _renderCreateForm();
@@ -130,6 +134,65 @@ async function _loadUsers() {
   }
 }
 
+// ── Management view ───────────────────────────────────────────────────────────
+
+async function _loadManagement() {
+  const content = document.getElementById('adminContent');
+  if (!content) return;
+  content.innerHTML =
+    '<p style="text-align:center;color:var(--text-muted);padding:20px 0">Loading…</p>';
+
+  try {
+    const ROLE_RANK  = { system_admin: 0, admin: 1, manager: 2 };
+    const ROLE_LABEL = { system_admin: 'System Admin', admin: 'Admin', manager: 'Manager' };
+    const ROLE_COLOR = { system_admin: '#a78bfa', admin: 'var(--cyan)', manager: 'var(--orange, #ff9800)' };
+    const ROLE_CLASS = { system_admin: 'role-sysadmin', admin: 'role-admin', manager: 'role-manager' };
+
+    const snap  = await getDocs(collection(db, 'players'));
+    const staff = snap.docs
+      .map(d => ({ uid: d.id, ...d.data() }))
+      .filter(p => p.role === 'system_admin' || p.role === 'admin' || p.role === 'manager')
+      .sort((a, b) => {
+        const ra = ROLE_RANK[a.role] ?? 99;
+        const rb = ROLE_RANK[b.role] ?? 99;
+        if (ra !== rb) return ra - rb;
+        return `${a.firstName}${a.lastName}`.localeCompare(`${b.firstName}${b.lastName}`);
+      });
+
+    if (staff.length === 0) {
+      content.innerHTML =
+        '<p style="text-align:center;color:var(--text-muted);padding:20px 0">No management accounts.</p>';
+      return;
+    }
+
+    content.innerHTML = `
+      <div class="mgmt-admin-list">
+        ${staff.map(p => {
+          const isMe   = p.uid === state.currentUser?.uid;
+          const avatar = p.photoUrl
+            ? `<img src="${p.photoUrl}" alt="" />`
+            : getInitials(p.firstName, p.lastName);
+          const color  = ROLE_COLOR[p.role] || 'var(--cyan)';
+          return `
+            <div class="mgmt-admin-row${isMe ? ' mgmt-admin-me' : ''}">
+              <div class="mgmt-admin-avatar" style="background:${color}22;color:${color}">${avatar}</div>
+              <div class="mgmt-admin-info">
+                <div class="mgmt-admin-name">${p.firstName} ${p.lastName}${isMe ? ' <span class="admin-you">(you)</span>' : ''}</div>
+                <div class="mgmt-admin-email">${p.email || ''}</div>
+              </div>
+              <span class="admin-badge ${ROLE_CLASS[p.role] || 'role-admin'}">
+                ${ROLE_LABEL[p.role] || p.role}
+              </span>
+            </div>`;
+        }).join('')}
+      </div>`;
+  } catch (err) {
+    console.error('Management load failed:', err);
+    content.innerHTML =
+      '<p style="text-align:center;color:var(--red);padding:20px 0">Could not load management accounts.</p>';
+  }
+}
+
 function _mkBtn(label, cls, action, uid) {
   return `<button class="admin-btn ${cls}" data-action="${action}" data-uid="${uid}">${label}</button>`;
 }
@@ -146,7 +209,9 @@ function _userRowHtml(p) {
     ? `<span class="admin-badge blocked">Blocked</span>`
     : `<span class="admin-badge active">Active</span>`;
 
-  const roleBadge = targetRole === 'admin'
+  const roleBadge = targetRole === 'system_admin'
+    ? `<span class="admin-badge role-sysadmin">System Admin</span>`
+    : targetRole === 'admin'
     ? `<span class="admin-badge role-admin">Admin</span>`
     : targetRole === 'manager'
     ? `<span class="admin-badge role-manager">Manager</span>`
@@ -250,11 +315,12 @@ function _confirmDelete(player) {
   document.querySelector('.modal').classList.add('modal-wide');
 }
 
-const ROLE_LABELS = { admin: 'Admin', manager: 'Manager', user: 'User' };
+const ROLE_LABELS = { system_admin: 'System Admin', admin: 'Admin', manager: 'Manager', user: 'User' };
 
 function _confirmRole(player, newRole) {
   const current = player.role || 'user';
-  const isUpgrade = (newRole === 'admin') || (newRole === 'manager' && current === 'user');
+  const RANK = { system_admin: 3, admin: 2, manager: 1, user: 0 };
+  const isUpgrade = (RANK[newRole] ?? 0) > (RANK[current] ?? 0);
 
   setModal({
     title: `Change Role → ${ROLE_LABELS[newRole]}`,
