@@ -54,9 +54,9 @@ export async function openLeaderboard() {
       return `
         <div class="leaderboard-row ${isMe ? 'me' : ''}">
           <span class="lb-rank">${medal}</span>
-          <div class="lb-avatar ${p.photoUrl ? 'has-photo' : ''}" style="position:relative">${avatar}${online ? '<span class="presence-dot online lb-presence"></span>' : ''}</div>
+          <div class="lb-avatar ${p.photoUrl ? 'has-photo' : ''}">${avatar}</div>
           <div class="lb-info">
-            <span class="lb-name">${esc(p.firstName)} ${esc(p.lastName)}${isMe ? ' (you)' : ''}${badgePips ? ` <span class="lb-badges">${badgePips}</span>` : ''}${streak > 0 ? ` <span title="${streak}-session streak" style="font-size:.85rem">🔥${streak}</span>` : ''}</span>
+            <span class="lb-name">${online ? '<span class="presence-dot online" title="Online now"></span>' : ''}${esc(p.firstName)} ${esc(p.lastName)}${isMe ? ' (you)' : ''}${badgePips ? ` <span class="lb-badges">${badgePips}</span>` : ''}${streak > 0 ? ` <span title="${streak}-session streak" style="font-size:.85rem">🔥${streak}</span>` : ''}</span>
             <span class="lb-rating">★ ${p.rating || '—'}</span>
           </div>
           <div class="lb-record">
