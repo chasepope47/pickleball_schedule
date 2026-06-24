@@ -8,7 +8,7 @@ import { authMsg } from './utils.js';
 import { showToast } from './ui.js';
 import {
   getCachedProfile, setCachedProfile, loadFirestoreProfile,
-  applyProfileToHeader, wireProfilePill,
+  applyProfileToHeader, wireProfilePill, openFirstLoginModal,
 } from './profile.js';
 import {
   buildWeekLabels, startSync, render, getJoinParams, openJoinModal,
@@ -136,6 +136,10 @@ onAuthStateChanged(auth, async (user) => {
       if (state.currentProfile) applyProfileToHeader(state.currentProfile);
     });
     initTournamentSidebar();
+
+    if (state.currentProfile.mustChangePassword) {
+      setTimeout(openFirstLoginModal, 500);
+    }
   } else {
     applyProfileToHeader(state.currentProfile);
     wireAdminBtn();

@@ -1,4 +1,7 @@
-export function setModal({ title, sub, body, actions }) {
+let _locked = false;
+
+export function setModal({ title, sub, body, actions, locked = false }) {
+  _locked = locked;
   document.getElementById('modalTitle').textContent = title;
   document.getElementById('modalSub').textContent   = sub;
   document.getElementById('modalBody').innerHTML    = body;
@@ -9,6 +12,8 @@ export function setModal({ title, sub, body, actions }) {
 }
 
 export function closeModal() {
+  if (_locked) return;
+  _locked = false;
   document.getElementById('modalOverlay').classList.remove('active');
   document.querySelector('.modal').classList.remove('modal-wide');
 }

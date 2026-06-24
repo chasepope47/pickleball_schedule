@@ -438,6 +438,7 @@ async function _submitCreate() {
       wins: 0, losses: 0,
       status: 'active',
       waiverSigned: false,
+      mustChangePassword: true,
       createdAt: serverTimestamp(),
     });
 

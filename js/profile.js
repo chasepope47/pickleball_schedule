@@ -294,3 +294,109 @@ export function openEditProfileModal() {
 export function wireProfilePill() {
   document.getElementById('userPill').addEventListener('click', () => openEditProfileModal());
 }
+
+// ── First-login setup (forced password change + waiver) ──────────────────────
+
+export function openFirstLoginModal() {
+  setModal({
+    title:  'Welcome to SafeStreets Pickleball!',
+    sub:    'Complete two quick steps before you get started.',
+    locked: true,
+    body: `
+      <div class="first-login-step">
+        <div class="first-login-step-header">
+          <span class="first-login-num">1</span>
+          <span class="first-login-label">Set your password</span>
+        </div>
+        <p class="first-login-desc">You were given a temporary password. Create a new personal one now.</p>
+        <div class="form-group">
+          <input type="password" id="flNewPwd"     placeholder="New password (min 6 characters)" autocomplete="new-password" />
+        </div>
+        <div class="form-group">
+          <input type="password" id="flConfirmPwd" placeholder="Confirm new password" autocomplete="new-password" />
+        </div>
+      </div>
+
+      <div class="first-login-step" style="margin-top:20px">
+        <div class="first-login-step-header">
+          <span class="first-login-num">2</span>
+          <span class="first-login-label">Sign the liability waiver</span>
+        </div>
+        <div class="waiver-box" id="flWaiverBox" style="max-height:180px;margin-top:10px">${WAIVER_BODY_HTML}</div>
+        <label class="waiver-check" id="flWaiverLabel" style="margin-top:10px">
+          <input type="checkbox" id="flWaiverCb" />
+          <span>I have read and agree to the Waiver &amp; Release of Liability</span>
+        </label>
+      </div>
+
+      <div class="first-login-error hidden" id="flError"></div>
+    `,
+    actions: [
+      makeBtn('Complete Setup →', 'btn-primary', async (e) => {
+        const btn        = e.currentTarget;
+        const pwd        = document.getElementById('flNewPwd').value;
+        const confirm    = document.getElementById('flConfirmPwd').value;
+        const waiverCb   = document.getElementById('flWaiverCb');
+        const errorEl    = document.getElementById('flError');
+        const pwdEl      = document.getElementById('flNewPwd');
+        const confirmEl  = document.getElementById('flConfirmPwd');
+        const waiverLbl  = document.getElementById('flWaiverLabel');
+        const waiverBox  = document.getElementById('flWaiverBox');
+
+        errorEl.classList.add('hidden');
+        pwdEl.classList.remove('error');
+        confirmEl.classList.remove('error');
+        waiverLbl.classList.remove('error');
+        waiverBox.classList.remove('error');
+
+        let valid = true;
+        if (pwd.length < 6) {
+          pwdEl.classList.add('error');
+          valid = false;
+        }
+        if (pwd !== confirm) {
+          confirmEl.classList.add('error');
+          errorEl.textContent = 'Passwords do not match.';
+          errorEl.classList.remove('hidden');
+          valid = false;
+        } else if (pwd.length < 6) {
+          errorEl.textContent = 'Password must be at least 6 characters.';
+          errorEl.classList.remove('hidden');
+        }
+        if (!waiverCb.checked) {
+          waiverLbl.classList.add('error');
+          waiverBox.classList.add('error');
+          valid = false;
+        }
+        if (!valid) return;
+
+        btn.textContent = 'Saving…';
+        btn.disabled    = true;
+
+        try {
+          await updatePassword(state.currentUser, pwd);
+        } catch (err) {
+          btn.textContent = 'Complete Setup →';
+          btn.disabled    = false;
+          errorEl.textContent = err.code === 'auth/requires-recent-login'
+            ? 'Session expired — please sign out and sign back in, then try again.'
+            : 'Could not update password. Please try again.';
+          errorEl.classList.remove('hidden');
+          return;
+        }
+
+        const updated = {
+          ...state.currentProfile,
+          mustChangePassword: false,
+          waiverSigned: true,
+        };
+        await saveFirestoreProfile(state.currentUser.uid, updated);
+
+        // Unlock and close
+        setModal({ title: '', sub: '', body: '', actions: [], locked: false });
+        closeModal();
+        showToast('Setup complete — welcome to the courts! 🏓');
+      }),
+    ],
+  });
+}
