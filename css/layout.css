@@ -26,10 +26,17 @@ main {
   padding: 28px 0;
 }
 
-.schedule-sidebar {
+.schedule-sidebar-col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
   width: 220px;
   flex-shrink: 0;
   padding-top: 28px;
+}
+
+.schedule-sidebar {
+  width: 100%;
 }
 
 @media (max-width: 860px) {
@@ -38,11 +45,10 @@ main {
     gap: 0;
     padding: 0 12px;
   }
-  .schedule-sidebar {
+  .schedule-sidebar-col {
     width: 100%;
-    position: static;
     padding-top: 0;
-    order: 1; /* tournaments appear below courts on mobile */
+    order: 1;
   }
   .schedule-main {
     width: 100%;
