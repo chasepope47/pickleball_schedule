@@ -90,7 +90,7 @@
 
   /* ── Admin panel ── */
   .admin-tabs { gap: 3px; padding: 3px; }
-  .admin-tab  { font-size: 0.74rem; padding: 6px 7px; }
+  .admin-tab  { font-size: 0.75rem; padding: 7px 10px; }
 
   /* Stack action buttons below user info */
   .admin-user-row {
@@ -149,8 +149,8 @@
   .legend { gap: 8px; font-size: 0.7rem; }
   .legend-dot { width: 10px; height: 10px; }
 
-  /* Admin tabs go to two rows */
-  .admin-tab { font-size: 0.7rem; padding: 5px 6px; }
+  /* Admin tabs — smaller text, still scrollable */
+  .admin-tab { font-size: 0.7rem; padding: 6px 9px; }
 
   /* Slots: slightly smaller text */
   .slot-time  { font-size: 0.72rem; }

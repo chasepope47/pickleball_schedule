@@ -4,7 +4,7 @@
 
 /* Wider modal variant used by the admin panel */
 .modal.modal-wide {
-  max-width: 620px;
+  max-width: 680px;
 }
 
 /* Admin header button — matches leaderboard button style */
@@ -30,21 +30,25 @@
 /* Admin tab switcher */
 .admin-tabs {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  flex-wrap: nowrap;
+  gap: 3px;
   background: var(--hover);
   border-radius: 10px;
   padding: 4px;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.admin-tabs::-webkit-scrollbar { display: none; }
 
 .admin-tab {
-  flex: 1;
-  padding: 8px 10px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  padding: 8px 14px;
   border: none;
   outline: none;
   border-radius: 7px;
-  font-size: 0.84rem;
+  font-size: 0.82rem;
   font-weight: 700;
   cursor: pointer;
   background: transparent;
@@ -56,10 +60,13 @@
 .admin-tab.active {
   background: var(--card);
   color: var(--text);
-  box-shadow: 0 1px 4px var(--shadow);
+  box-shadow: 0 1px 6px var(--shadow);
 }
 
-.admin-tab:not(.active):hover { color: var(--text); }
+.admin-tab:not(.active):hover {
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+}
 
 /* User list */
 .admin-user-list {

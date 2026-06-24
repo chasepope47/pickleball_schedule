@@ -61,12 +61,12 @@ function _renderShell() {
   document.getElementById('modalActions').innerHTML = '';
   document.getElementById('modalBody').innerHTML = `
     <div class="admin-tabs" id="adminTabs">
-      <button class="admin-tab active" data-view="users">Users</button>
-      <button class="admin-tab"        data-view="management">👔 Management</button>
+      <button class="admin-tab active" data-view="users">👥 Users</button>
+      <button class="admin-tab"        data-view="management">👔 Staff</button>
       <button class="admin-tab"        data-view="waivers">📋 Waivers</button>
-      <button class="admin-tab"        data-view="departments">Departments</button>
+      <button class="admin-tab"        data-view="departments">🏢 Departments</button>
       <button class="admin-tab"        data-view="tournaments">🏆 Tournaments</button>
-      <button class="admin-tab"        data-view="create">+ Create Account</button>
+      <button class="admin-tab"        data-view="create">＋ Create</button>
     </div>
     <div id="adminContent"></div>
   `;
