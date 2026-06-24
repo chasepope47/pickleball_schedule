@@ -112,7 +112,7 @@
 
 .pd-start-btn { min-width: 140px; }
 
-/* ── Pickles ── */
+/* ── Pickles — larger hit area via padding ── */
 .pd-pickle {
   position: absolute;
   cursor: pointer;
@@ -120,12 +120,15 @@
   will-change: left;
   transition: transform 0.06s;
   filter: drop-shadow(0 0 4px rgba(255,255,255,0.2));
+  padding: 16px;          /* invisible padding = much bigger click area */
+  margin: -16px;          /* compensate so visual position stays the same */
+  border-radius: 50%;
 }
 .pd-pickle:hover {
-  transform: scale(1.25);
-  filter: drop-shadow(0 0 8px var(--cyan-glow));
+  transform: scale(1.3);
+  filter: drop-shadow(0 0 10px var(--cyan-glow));
 }
-.pd-pickle:active { transform: scale(0.9); }
+.pd-pickle:active { transform: scale(0.85); }
 
 /* ── Pop feedback ── */
 .pd-pop {
@@ -372,4 +375,239 @@ body.konami-active .court-card {
   border-color: var(--cyan);
   box-shadow: 0 0 8px var(--cyan-glow);
   transform: rotate(-12deg) scale(1.08);
+}
+
+/* =============================================================================
+   COURT CONQUEST (sidebar)
+   ============================================================================= */
+
+.conquest-sidebar {
+  background: var(--hover);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.cq-header {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-dim);
+  margin-bottom: 7px;
+}
+
+.cq-court {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.cq-court:last-child { margin-bottom: 0; }
+
+.cq-leader {
+  font-weight: 700;
+  color: var(--cyan);
+}
+.cq-count {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-left: 2px;
+}
+.cq-tied  { color: var(--orange); font-weight: 700; }
+.cq-empty { color: var(--text-muted); font-style: italic; }
+
+/* =============================================================================
+   RIVALRY SIDEBAR BANNER
+   ============================================================================= */
+
+.rivalry-sidebar-banner {
+  background: linear-gradient(135deg, rgba(229,57,53,0.08), rgba(255,152,0,0.08));
+  border: 1px solid rgba(229,57,53,0.3);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.rsb-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--red);
+  margin-bottom: 8px;
+}
+
+.rsb-days {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: none;
+}
+
+.rsb-score {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+}
+
+.rsb-team {
+  flex: 1;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 0.15s;
+}
+.rsb-team:last-child { justify-content: flex-end; }
+.rsb-team.rsb-lead {
+  color: var(--orange);
+  font-weight: 700;
+}
+.rsb-vs {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* Rivalry ⚔️ pin on dept name */
+.rivalry-pin {
+  font-size: 0.72rem;
+  opacity: 0.85;
+  vertical-align: middle;
+  margin-left: 3px;
+}
+
+/* Permanent victory banners on dept row */
+.rivalry-victory-banner {
+  display: inline-block;
+  font-size: 0.64rem;
+  font-weight: 700;
+  color: var(--orange);
+  background: rgba(255,152,0,0.08);
+  border: 1px solid rgba(255,152,0,0.25);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-top: 3px;
+  margin-right: 3px;
+}
+
+/* =============================================================================
+   RIVALRY ADMIN PANEL
+   ============================================================================= */
+
+.rivalry-admin-active {
+  background: linear-gradient(135deg, rgba(229,57,53,0.07), rgba(255,152,0,0.07));
+  border: 1px solid rgba(229,57,53,0.25);
+  border-radius: 12px;
+  padding: 18px 20px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.rivalry-admin-badge {
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  color: var(--red);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.rivalry-admin-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.rivalry-admin-dates {
+  font-size: 0.76rem;
+  color: var(--text-dim);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.rivalry-admin-days { font-weight: 700; color: var(--cyan); }
+.rivalry-admin-days.over { color: var(--text-muted); }
+
+.rivalry-admin-scoreboard {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.ras-team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+  min-width: 90px;
+}
+.ras-team.leading { opacity: 1; }
+
+.ras-icon  { font-size: 1.8rem; }
+.ras-name  { font-size: 0.72rem; font-weight: 700; color: var(--text-dim); }
+.ras-score {
+  font-size: 2rem;
+  font-weight: 900;
+  color: var(--text);
+  line-height: 1;
+}
+.ras-team.leading .ras-score { color: var(--cyan); }
+
+.ras-vs {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.rivalry-admin-hint {
+  font-size: 0.76rem;
+  color: var(--orange);
+  margin-top: 12px;
+  margin-bottom: 0;
+}
+
+.rivalry-admin-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.rivalry-create-form { margin-bottom: 4px; }
+.rivalry-create-intro {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+
+/* =============================================================================
+   UNDERDOG BONUS (Pickle-Dodge result screen)
+   ============================================================================= */
+
+.pd-result-underdog {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--orange);
+  background: rgba(255,152,0,0.1);
+  border: 1px solid rgba(255,152,0,0.3);
+  border-radius: 8px;
+  padding: 6px 14px;
+  margin-top: 4px;
+  animation: pd-pulse 0.8s ease-in-out infinite alternate;
 }

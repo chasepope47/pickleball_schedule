@@ -101,6 +101,35 @@ export async function checkAndAwardBadges(matchData) {
             }
           }
         }
+
+        // Underdog check — dept has more losses than wins → award badge + 7-day 2× multiplier
+        if (myDept) {
+          let deptW = 0, deptL = 0;
+          snap.docs.forEach(d => {
+            const p = d.data();
+            if (p.department === myDept) { deptW += p.wins || 0; deptL += p.losses || 0; }
+          });
+          // Include the current win in the calc (hasn't been written to Firestore yet)
+          deptW += 1;
+          if (deptL > deptW) {
+            const latest = new Set(state.currentProfile.badges || []);
+            const underdogUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+            const updates = { underdogUntil };
+            if (!latest.has('underdog')) {
+              updates.badges = [...latest, 'underdog'];
+            }
+            await updateDoc(doc(db, 'players', state.currentUser.uid), updates);
+            if (!latest.has('underdog')) {
+              const updated = [...latest, 'underdog'];
+              state.currentProfile = { ...state.currentProfile, badges: updated, underdogUntil };
+              setCachedProfile(state.currentProfile);
+              setTimeout(() => showBadgeToast(BADGES.underdog), 4500);
+            } else {
+              state.currentProfile = { ...state.currentProfile, underdogUntil };
+              setCachedProfile(state.currentProfile);
+            }
+          }
+        }
       }
     }
   } catch (err) {

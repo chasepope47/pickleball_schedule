@@ -143,30 +143,40 @@ async function _finish() {
   clearInterval(_spawnT);
   document.querySelectorAll('.pd-pickle').forEach(p => p.remove());
 
-  if (state.currentUser && _score > 0) {
+  // Underdog 2× multiplier check
+  const underdogUntil = state.currentProfile?.underdogUntil?.toDate?.()?.getTime()
+    ?? (state.currentProfile?.underdogUntil instanceof Date
+        ? state.currentProfile.underdogUntil.getTime() : 0);
+  const isUnderdog  = Date.now() < underdogUntil;
+  const finalScore  = isUnderdog ? _score * 2 : _score;
+
+  if (state.currentUser && finalScore > 0) {
     const best = state.currentProfile?.pickleHighScore ?? 0;
-    const upd  = { pickleTotalPoints: increment(_score) };
-    if (_score > best) upd.pickleHighScore = _score;
+    const upd  = { pickleTotalPoints: increment(finalScore) };
+    if (finalScore > best) upd.pickleHighScore = finalScore;
     try { await updateDoc(doc(db, 'players', state.currentUser.uid), upd); } catch {}
     const deptId = state.currentProfile?.department;
     if (deptId) {
-      try { await updateDoc(doc(db, 'departments', deptId), { picklePoints: increment(_score) }); } catch {}
+      try { await updateDoc(doc(db, 'departments', deptId), { picklePoints: increment(finalScore) }); } catch {}
     }
   }
 
   const arena = document.getElementById('pdArena');
   if (!arena) return;
 
-  const rank   = _rank(_score);
+  const rank    = _rank(finalScore);
   const deptMsg = state.currentProfile?.department
     ? `<p class="pd-result-dept">Points added to your department's seasonal total 🏆</p>`
     : '';
-  const best   = Math.max(_score, state.currentProfile?.pickleHighScore ?? 0);
+  const best      = Math.max(finalScore, state.currentProfile?.pickleHighScore ?? 0);
+  const bonusLine = isUnderdog
+    ? `<div class="pd-result-underdog">🐾 Underdog 2× Bonus Applied! (${_score} × 2)</div>` : '';
 
   arena.innerHTML = `
     <div class="pd-result">
-      <div class="pd-result-score">${_score}</div>
+      <div class="pd-result-score">${finalScore}</div>
       <div class="pd-result-label">Pickle Points</div>
+      ${bonusLine}
       <div class="pd-result-rank">${rank}</div>
       <div class="pd-result-best">Personal best: ${best} pts</div>
       ${deptMsg}

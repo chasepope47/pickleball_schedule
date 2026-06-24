@@ -29,6 +29,7 @@ export const BADGES = {
   teamTopDog:   { icon: '🏆', name: 'Team Champions',  desc: "Your department reached #1 on the team leaderboard" },
   earlyBird:    { icon: '🌅', name: 'Early Bird',      desc: 'Played a match before 8 AM' },
   nightOwl:     { icon: '🦉', name: 'Night Owl',       desc: 'Played a match at or after 8 PM' },
+  underdog:     { icon: '🐾', name: 'Underdog',        desc: 'Won a match while your department had a losing record' },
 };
 
 export const WAIVER_BODY_HTML = `

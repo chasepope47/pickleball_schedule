@@ -11,6 +11,7 @@ import { renderAdminDeptContent } from './departments.js';
 import { createTournamentRecord, updateTournamentRecord, refreshTournamentSidebar } from './tournaments.js';
 import { BADGES, WAIVER_BODY_HTML } from './constants.js';
 import { isOnline } from './presence.js';
+import { renderRivalryAdminContent } from './rivalry.js';
 
 // ── Secondary Firebase app (creates users without signing out the current user) ─
 
@@ -67,6 +68,7 @@ function _renderShell() {
       <button class="admin-tab"        data-view="waivers">📋 Waivers</button>
       <button class="admin-tab"        data-view="departments">🏢 Departments</button>
       <button class="admin-tab"        data-view="tournaments">🏆 Tournaments</button>
+      <button class="admin-tab"        data-view="rivalry">⚔️ Rivalry</button>
       <button class="admin-tab"        data-view="create">＋ Create</button>
     </div>
     <div id="adminContent"></div>
@@ -85,6 +87,7 @@ function _renderShell() {
     else if (_activeView === 'waivers') _loadWaivers();
     else if (_activeView === 'departments') renderAdminDeptContent(document.getElementById('adminContent'));
     else if (_activeView === 'tournaments') _renderTournamentsForm();
+    else if (_activeView === 'rivalry') renderRivalryAdminContent(document.getElementById('adminContent'));
     else _renderCreateForm();
   });
 

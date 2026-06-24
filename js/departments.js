@@ -4,11 +4,16 @@ import {
 import { state } from './state.js';
 import { setModal, closeModal, makeBtn, showToast } from './ui.js';
 import { getInitials, esc } from './utils.js';
+import { fetchCourtConquest } from './conquest.js';
+import { loadActiveRivalry, computeRivalryScore } from './rivalry.js';
 
 // ── Cache ────────────────────────────────────────────────────────────────────
 
-let _deptMap = new Map(); // deptId → { id, name, ... }
-let _players = [];         // all player objects
+let _deptMap      = new Map();
+let _players      = [];
+let _conquestData = null;
+let _activeRival  = null;
+let _rivalScore   = null;
 
 export function getDeptById(deptId) {
   return _deptMap.get(deptId) || null;
@@ -21,6 +26,15 @@ async function _fetchAll() {
   ]);
   _deptMap = new Map(deptsSnap.docs.map(d => [d.id, { id: d.id, ...d.data() }]));
   _players = playersSnap.docs.map(d => ({ uid: d.id, ...d.data() }));
+
+  // Load extras in parallel after we have base data
+  [_conquestData, _activeRival] = await Promise.all([
+    fetchCourtConquest(_players, _deptMap),
+    loadActiveRivalry(),
+  ]);
+  _rivalScore = _activeRival
+    ? await computeRivalryScore(_activeRival, _players)
+    : null;
 }
 
 function _computeStandings() {
@@ -72,19 +86,72 @@ function _renderSection() {
   }
 
   section.style.display = '';
-  const medals = ['🥇', '🥈', '🥉'];
+  const medals     = ['🥇', '🥈', '🥉'];
+  const rivalDepts = new Set();
 
-  list.innerHTML = standings.map((dept, i) => {
+  // ── Rivalry banner ──────────────────────────────────────────────────────────
+  let rivalryHtml = '';
+  if (_activeRival && _rivalScore) {
+    const { dept1Id, dept2Id, dept1Name, dept2Name, dept1Icon, dept2Icon, endDate, title } = _activeRival;
+    rivalDepts.add(dept1Id);
+    rivalDepts.add(dept2Id);
+    const end      = endDate?.toDate?.() ?? new Date(endDate);
+    const daysLeft = Math.max(0, Math.ceil((end - Date.now()) / 864e5));
+    const { dept1Wins, dept2Wins } = _rivalScore;
+    rivalryHtml = `
+      <div class="rivalry-sidebar-banner">
+        <div class="rsb-header">
+          <span>⚔️ ${esc(title || 'Rivalry Week')}</span>
+          <span class="rsb-days">${daysLeft > 0 ? `${daysLeft}d left` : 'Ended'}</span>
+        </div>
+        <div class="rsb-score">
+          <span class="rsb-team ${dept1Wins >= dept2Wins ? 'rsb-lead' : ''}">
+            ${dept1Icon || '🏢'} ${esc(dept1Name)} <strong>${dept1Wins}</strong>
+          </span>
+          <span class="rsb-vs">vs</span>
+          <span class="rsb-team ${dept2Wins >= dept1Wins ? 'rsb-lead' : ''}">
+            <strong>${dept2Wins}</strong> ${esc(dept2Name)} ${dept2Icon || '🏢'}
+          </span>
+        </div>
+      </div>`;
+  }
+
+  // ── Court Conquest ──────────────────────────────────────────────────────────
+  let conquestHtml = '';
+  if (_conquestData && (_conquestData[1] || _conquestData[2])) {
+    const month = new Date().toLocaleString('default', { month: 'long' });
+    const courtLine = n => {
+      const d = _conquestData[n];
+      if (!d) return `<div class="cq-court">🏓 Court ${n}: <span class="cq-empty">No data yet</span></div>`;
+      if (d.tied) return `<div class="cq-court">🏓 Court ${n}: <span class="cq-tied">Tied!</span> (${d.captures} each)</div>`;
+      return `<div class="cq-court">🏓 Court ${n}: <span class="cq-leader">${d.icon} ${esc(d.name)}</span> <span class="cq-count">${d.captures}×</span></div>`;
+    };
+    conquestHtml = `
+      <div class="conquest-sidebar">
+        <div class="cq-header">🗺️ Court Conquest — ${month}</div>
+        ${courtLine(1)}${courtLine(2)}
+      </div>`;
+  }
+
+  // ── Dept rows ───────────────────────────────────────────────────────────────
+  const deptRows = standings.map((dept, i) => {
     const isMe  = dept.id === myDept;
     const total = dept.wins + dept.losses;
     const pct   = total > 0 ? Math.round(dept.wins / total * 100) : null;
     const medal = i < 3 ? medals[i] : `#${i + 1}`;
+    const isRival = rivalDepts.has(dept.id);
+
+    const banners = (dept.rivalryBanners || []).map(b =>
+      `<div class="rivalry-victory-banner" title="Won rivalry vs ${esc(b.against)}">🏆 ${esc(b.title)}</div>`
+    ).join('');
+
     return `
       <div class="dept-row ${isMe ? 'dept-mine' : ''}" data-dept="${dept.id}" role="button" tabindex="0">
         <div class="dept-rank">${medal}</div>
         <div class="dept-info">
-          <div class="dept-name">${dept.icon ? `${dept.icon} ` : ''}${esc(dept.name)}</div>
+          <div class="dept-name">${dept.icon ? `${dept.icon} ` : ''}${esc(dept.name)}${isRival ? ' <span class="rivalry-pin">⚔️</span>' : ''}</div>
           <div class="dept-meta">${dept.members.length} member${dept.members.length !== 1 ? 's' : ''}</div>
+          ${banners}
         </div>
         <div class="dept-record">
           <span class="dept-wins">${dept.wins}W</span>
@@ -94,6 +161,8 @@ function _renderSection() {
         </div>
       </div>`;
   }).join('');
+
+  list.innerHTML = rivalryHtml + conquestHtml + deptRows;
 
   list.querySelectorAll('.dept-row').forEach(row => {
     const open = () => openDeptModal(row.dataset.dept);

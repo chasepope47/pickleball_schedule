@@ -26,9 +26,10 @@ service cloud.firestore {
     function canManage()  { return isAdmin() || isManager(); }
 
     // Fields a regular user is NOT allowed to change on their own profile
+    // NOTE: 'badges' is intentionally excluded — the client badge system needs to write it
     function noPrivilegedFieldChange() {
       return !request.resource.data.diff(resource.data).affectedKeys()
-        .hasAny(['role', 'status', 'wins', 'losses', 'rating', 'badges', 'createdAt', 'email']);
+        .hasAny(['role', 'status', 'wins', 'losses', 'rating', 'createdAt', 'email']);
     }
 
     // Player profiles
@@ -83,6 +84,14 @@ service cloud.firestore {
 
     // Department collection
     match /departments/{deptId} {
+      allow read:   if isSignedIn();
+      allow create: if canManage();
+      allow update: if canManage();
+      allow delete: if canManage();
+    }
+
+    // Rivalry events
+    match /rivalries/{rivalryId} {
       allow read:   if isSignedIn();
       allow create: if canManage();
       allow update: if canManage();
