@@ -2,3 +2,7 @@
 import './theme.js';
 import './auth.js';
 import './leaderboard.js';
+import './easter.js';
+import { initGame } from './pickledodge.js';
+
+initGame();
