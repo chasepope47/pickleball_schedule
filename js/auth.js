@@ -29,9 +29,13 @@ const overlay = document.getElementById('welcomeOverlay');
 
 function showAuthOverlay() {
   overlay.classList.remove('hidden');
+  document.body.classList.add('auth-active');
   document.getElementById('loginBtn').textContent = 'Sign In →';
 }
-function hideAuthOverlay() { overlay.classList.add('hidden'); }
+function hideAuthOverlay() {
+  overlay.classList.add('hidden');
+  document.body.classList.remove('auth-active');
+}
 
 // ── Sign In ──────────────────────────────────────────────────────────────────
 
