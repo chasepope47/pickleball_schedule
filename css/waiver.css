@@ -148,3 +148,111 @@
 }
 
 .first-login-error.hidden { display: none; }
+
+/* ── Electronic signature input (waiver signing form) ── */
+.waiver-sig-input {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-size: 1.1rem;
+  font-style: italic;
+  color: var(--cyan);
+  letter-spacing: 0.02em;
+}
+
+/* ── Waiver admin viewer ── */
+.waiver-summary {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.waiver-stat {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.waiver-stat.signed-stat {
+  background: rgba(62, 207, 142, 0.08);
+  border: 1px solid rgba(62, 207, 142, 0.3);
+  color: var(--green);
+}
+
+.waiver-stat.unsigned-stat {
+  background: rgba(229, 57, 53, 0.08);
+  border: 1px solid rgba(229, 57, 53, 0.3);
+  color: var(--red);
+}
+
+.waiver-section-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.waiver-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.waiver-record {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+}
+
+.waiver-record.signed {
+  border-color: rgba(62, 207, 142, 0.2);
+}
+
+.waiver-record.unsigned {
+  opacity: 0.75;
+}
+
+.waiver-record-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.waiver-record-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.waiver-record-email {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.waiver-record-date {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.waiver-sig-display {
+  font-family: 'Dancing Script', 'Brush Script MT', 'Segoe Script', cursive;
+  font-size: 1.3rem;
+  color: var(--cyan);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-bottom: 1px solid var(--cyan-border);
+}

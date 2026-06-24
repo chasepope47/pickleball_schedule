@@ -63,6 +63,7 @@ function _renderShell() {
     <div class="admin-tabs" id="adminTabs">
       <button class="admin-tab active" data-view="users">Users</button>
       <button class="admin-tab"        data-view="management">👔 Management</button>
+      <button class="admin-tab"        data-view="waivers">📋 Waivers</button>
       <button class="admin-tab"        data-view="departments">Departments</button>
       <button class="admin-tab"        data-view="tournaments">🏆 Tournaments</button>
       <button class="admin-tab"        data-view="create">+ Create Account</button>
@@ -80,6 +81,7 @@ function _renderShell() {
       t.classList.toggle('active', t.dataset.view === _activeView));
     if (_activeView === 'users') _loadUsers();
     else if (_activeView === 'management') _loadManagement();
+    else if (_activeView === 'waivers') _loadWaivers();
     else if (_activeView === 'departments') renderAdminDeptContent(document.getElementById('adminContent'));
     else if (_activeView === 'tournaments') _renderTournamentsForm();
     else _renderCreateForm();
@@ -190,6 +192,69 @@ async function _loadManagement() {
     console.error('Management load failed:', err);
     content.innerHTML =
       '<p style="text-align:center;color:var(--red);padding:20px 0">Could not load management accounts.</p>';
+  }
+}
+
+// ── Waivers view ──────────────────────────────────────────────────────────────
+
+async function _loadWaivers() {
+  const content = document.getElementById('adminContent');
+  if (!content) return;
+  content.innerHTML =
+    '<p style="text-align:center;color:var(--text-muted);padding:20px 0">Loading…</p>';
+
+  try {
+    const snap    = await getDocs(collection(db, 'players'));
+    const players = snap.docs
+      .map(d => ({ uid: d.id, ...d.data() }))
+      .sort((a, b) => `${a.firstName}${a.lastName}`.localeCompare(`${b.firstName}${b.lastName}`));
+
+    const signed   = players.filter(p => p.waiverSigned);
+    const unsigned = players.filter(p => !p.waiverSigned);
+
+    function fmtDate(ts) {
+      if (!ts) return 'Date unknown';
+      const d = ts.toDate ? ts.toDate() : new Date(ts);
+      return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+
+    const signedHtml = signed.map(p => `
+      <div class="waiver-record signed">
+        <div class="waiver-record-info">
+          <div class="waiver-record-name">${esc(p.firstName)} ${esc(p.lastName)}</div>
+          <div class="waiver-record-email">${esc(p.email || '')}</div>
+          <div class="waiver-record-date">Signed ${fmtDate(p.waiverSignedAt)}</div>
+        </div>
+        <div class="waiver-sig-display">${esc(p.waiverSignatureName || p.firstName + ' ' + p.lastName)}</div>
+        <span class="admin-badge active" style="flex-shrink:0">✓ Signed</span>
+      </div>`).join('');
+
+    const unsignedHtml = unsigned.map(p => `
+      <div class="waiver-record unsigned">
+        <div class="waiver-record-info">
+          <div class="waiver-record-name">${esc(p.firstName)} ${esc(p.lastName)}</div>
+          <div class="waiver-record-email">${esc(p.email || '')}</div>
+        </div>
+        <span class="admin-badge blocked" style="flex-shrink:0">Not Signed</span>
+      </div>`).join('');
+
+    content.innerHTML = `
+      <div class="waiver-summary">
+        <span class="waiver-stat signed-stat">${signed.length} signed</span>
+        <span class="waiver-stat unsigned-stat">${unsigned.length} not signed</span>
+      </div>
+      ${signed.length > 0 ? `
+        <div class="waiver-section-label">Signed Waivers</div>
+        <div class="waiver-list">${signedHtml}</div>` : ''}
+      ${unsigned.length > 0 ? `
+        <div class="waiver-section-label" style="margin-top:${signed.length > 0 ? '16px' : '0'}">Unsigned</div>
+        <div class="waiver-list">${unsignedHtml}</div>` : ''}
+      ${players.length === 0 ? '<p style="text-align:center;color:var(--text-muted);padding:20px 0">No users found.</p>' : ''}
+    `;
+  } catch (err) {
+    console.error('Waivers load failed:', err);
+    content.innerHTML =
+      '<p style="text-align:center;color:var(--red);padding:20px 0">Could not load waiver records.</p>';
   }
 }
 

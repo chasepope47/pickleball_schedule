@@ -1,4 +1,4 @@
-import { db, doc, getDoc, setDoc, auth, signOut, updatePassword } from './firebase.js';
+import { db, doc, getDoc, setDoc, auth, signOut, updatePassword, serverTimestamp } from './firebase.js';
 import { state } from './state.js';
 import { BADGES, WAIVER_BODY_HTML } from './constants.js';
 import { getInitials, resizeImage, esc } from './utils.js';
@@ -85,20 +85,38 @@ export function openWaiverModal(onSigned) {
       <div class="waiver-box" id="mWaiverBox" style="max-height:220px">${WAIVER_BODY_HTML}</div>
       <label class="waiver-check" id="mWaiverLabel" style="margin-top:12px">
         <input type="checkbox" id="mWaiverCb" />
-        <span>I have read and agree to the Waiver &amp; Release of Liability</span>
+        <span>I have read and agree to the above waiver</span>
       </label>
+      <div class="form-group" style="margin-top:12px">
+        <label for="mWaiverSig" style="font-size:.8rem;font-weight:700">Electronic Signature — type your full name</label>
+        <input type="text" id="mWaiverSig" class="waiver-sig-input" placeholder="Full name" autocomplete="name" />
+      </div>
     `,
     actions: [
       makeBtn('Cancel', 'btn-secondary', closeModal),
       makeBtn('Sign & Continue', 'btn-primary', async () => {
-        const cb = document.getElementById('mWaiverCb');
+        const cb  = document.getElementById('mWaiverCb');
+        const sig = document.getElementById('mWaiverSig').value.trim();
+        let valid = true;
+        document.getElementById('mWaiverLabel').classList.remove('error');
+        document.getElementById('mWaiverBox').classList.remove('error');
+        document.getElementById('mWaiverSig').classList.remove('error');
         if (!cb.checked) {
           document.getElementById('mWaiverLabel').classList.add('error');
           document.getElementById('mWaiverBox').classList.add('error');
-          return;
+          valid = false;
         }
-        const updated = { ...state.currentProfile, waiverSigned: true };
-        await saveFirestoreProfile(state.currentUser.uid, updated);
+        if (!sig) {
+          document.getElementById('mWaiverSig').classList.add('error');
+          valid = false;
+        }
+        if (!valid) return;
+        await setDoc(doc(db, 'players', state.currentUser.uid), {
+          waiverSigned: true,
+          waiverSignatureName: sig,
+          waiverSignedAt: serverTimestamp(),
+        }, { merge: true });
+        state.currentProfile = { ...state.currentProfile, waiverSigned: true, waiverSignatureName: sig };
         closeModal();
         showToast('Waiver signed — you can now reserve courts.');
         if (typeof onSigned === 'function') setTimeout(onSigned, 300);
@@ -329,8 +347,12 @@ export function openFirstLoginModal() {
       <div class="waiver-box" id="flWaiverBox" style="max-height:180px;margin-top:10px">${WAIVER_BODY_HTML}</div>
       <label class="waiver-check" id="flWaiverLabel" style="margin-top:10px">
         <input type="checkbox" id="flWaiverCb" />
-        <span>I have read and agree to the Waiver &amp; Release of Liability</span>
+        <span>I have read and agree to the above waiver</span>
       </label>
+      <div class="form-group" style="margin-top:10px">
+        <label for="flWaiverSig" style="font-size:.8rem;font-weight:700">Electronic Signature — type your full name</label>
+        <input type="text" id="flWaiverSig" class="waiver-sig-input" placeholder="Full name" autocomplete="name" />
+      </div>
     </div>` : '';
 
   setModal({
@@ -373,11 +395,21 @@ export function openFirstLoginModal() {
           const waiverCb  = document.getElementById('flWaiverCb');
           const waiverLbl = document.getElementById('flWaiverLabel');
           const waiverBox = document.getElementById('flWaiverBox');
+          const waiverSig = document.getElementById('flWaiverSig');
           waiverLbl.classList.remove('error');
           waiverBox.classList.remove('error');
+          waiverSig.classList.remove('error');
           if (!waiverCb.checked) {
             waiverLbl.classList.add('error');
             waiverBox.classList.add('error');
+            valid = false;
+          }
+          if (!waiverSig.value.trim()) {
+            waiverSig.classList.add('error');
+            if (valid) {
+              errorEl.textContent = 'Please type your full name as your electronic signature.';
+              errorEl.classList.remove('hidden');
+            }
             valid = false;
           }
         }
@@ -402,12 +434,18 @@ export function openFirstLoginModal() {
           }
         }
 
+        const waiverSigName = needsWaiver ? document.getElementById('flWaiverSig').value.trim() : null;
         const updated = {
           ...state.currentProfile,
           ...(needsPwd    && { mustChangePassword: false }),
-          ...(needsWaiver && { waiverSigned: true }),
+          ...(needsWaiver && { waiverSigned: true, waiverSignatureName: waiverSigName }),
         };
-        await saveFirestoreProfile(state.currentUser.uid, updated);
+        await setDoc(doc(db, 'players', state.currentUser.uid), {
+          ...updated,
+          ...(needsWaiver && { waiverSignedAt: serverTimestamp() }),
+        }, { merge: true });
+        state.currentProfile = updated;
+        setCachedProfile(updated);
 
         setModal({ title: '', sub: '', body: '', actions: [], locked: false });
         closeModal();
