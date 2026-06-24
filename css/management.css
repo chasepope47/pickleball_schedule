@@ -1,0 +1,81 @@
+/* =============================================================================
+   MANAGEMENT SIDEBAR SECTION
+   ============================================================================= */
+
+.mgmt-section { padding: 0; }
+
+.mgmt-header { margin-bottom: 8px; }
+
+.mgmt-title {
+  font-size: .75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.mgmt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.mgmt-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+}
+
+.mgmt-row.mgmt-me {
+  border-color: var(--cyan-border);
+  background: var(--cyan-bg);
+}
+
+.mgmt-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.mgmt-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.mgmt-info { flex: 1; min-width: 0; }
+
+.mgmt-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mgmt-you {
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+.mgmt-role {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 1px;
+}
