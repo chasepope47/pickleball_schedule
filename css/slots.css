@@ -152,6 +152,25 @@
   color: var(--text-muted);
 }
 
+.slot.restricted {
+  opacity: 0.45;
+  cursor: default;
+  background: repeating-linear-gradient(
+    135deg,
+    transparent,
+    transparent 6px,
+    rgba(255,255,255,0.02) 6px,
+    rgba(255,255,255,0.02) 12px
+  );
+}
+.slot.restricted .slot-time { color: var(--text-muted); }
+.slot.restricted .slot-action {
+  background: transparent;
+  border: 1px solid rgba(229,57,53,0.25);
+  color: rgba(229,57,53,0.6);
+  font-size: 0.68rem;
+}
+
 .slot.past {
   opacity: 0.3;
   cursor: default;
