@@ -32,12 +32,12 @@ export const BADGES = {
 };
 
 export const WAIVER_BODY_HTML = `
-  <p class="waiver-title">Waiver &amp; Release of Liability</p>
-  <p><strong>Assumption of Risk.</strong> Pickleball is a physical sport. I understand that participation involves inherent risks including, but not limited to, physical exertion, falls, collisions with other players or equipment, muscle strains, joint injuries, and other bodily harm.</p>
-  <p><strong>Release of Liability.</strong> I, on behalf of myself, my heirs, and personal representatives, voluntarily release, waive, and discharge SafeStreets, its officers, employees, and agents from any and all liability, claims, or demands arising from my participation in pickleball activities at their facilities.</p>
-  <p><strong>Health Acknowledgment.</strong> I confirm I am in adequate physical condition to participate in this activity. I understand it is my responsibility to consult a physician before participating if I have any health concerns.</p>
-  <p><strong>Facility Rules.</strong> I agree to follow all facility rules, court etiquette, and instructions of facility staff, and to treat all participants with respect.</p>
-  <p>This agreement is effective for all court reservations made through the SafeStreets scheduling system.</p>
+  <p class="waiver-title">Play at Your Own Risk</p>
+  <p>Use of this facility is at your own risk. Safe Streets is not responsible for any injuries, accidents, or loss of personal property while using this facility.</p>
+  <p><strong>Assumption of Risk and Release of Liability</strong></p>
+  <p>I acknowledge that participation in activities at the Safe Streets facility involves inherent risks, including the risk of injury. By using this facility, I voluntarily assume all risks associated with participation.</p>
+  <p>I hereby release, waive, and discharge Safe Streets, its staff, volunteers, and affiliates from all liability, claims, demands, or causes of action for injuries, damage, or losses that may arise from my use of the facility, whether caused by negligence or otherwise.</p>
+  <p>I understand and agree to use the facility at my own risk.</p>
 `;
 
 export const AUTH_ERRORS = {
