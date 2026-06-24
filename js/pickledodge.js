@@ -13,6 +13,22 @@ export function initGame() {
   document.getElementById('gameBtn')?.addEventListener('click', _open);
 }
 
+// ── Paddle cursor ─────────────────────────────────────────────────────────────
+
+function _paddleCursor() {
+  const size = 44;
+  const c    = document.createElement('canvas');
+  c.width    = size;
+  c.height   = size;
+  const ctx  = c.getContext('2d');
+  ctx.font         = '36px serif';
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('🏓', size / 2, size / 2);
+  // hotspot at center of paddle face (roughly left-center of emoji)
+  return `url(${c.toDataURL()}) ${size / 2} ${size / 2}, auto`;
+}
+
 // ── Overlay ───────────────────────────────────────────────────────────────────
 
 function _open() {
@@ -38,6 +54,10 @@ function _open() {
     </div>
   `;
   document.body.appendChild(div);
+
+  // Apply paddle cursor to the whole game overlay
+  div.style.cursor = _paddleCursor();
+
   document.getElementById('pdClose').addEventListener('click', _close);
   document.getElementById('pdStart').addEventListener('click', _start);
 }

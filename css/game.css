@@ -84,7 +84,7 @@
   flex: 1;
   position: relative;
   overflow: hidden;
-  cursor: crosshair;
+  /* cursor set dynamically to paddle emoji via JS */
 }
 
 /* ── Start prompt ── */
@@ -115,7 +115,7 @@
 /* ── Pickles — larger hit area via padding ── */
 .pd-pickle {
   position: absolute;
-  cursor: pointer;
+  cursor: inherit;   /* keep the paddle emoji cursor on hover */
   user-select: none;
   will-change: left;
   transition: transform 0.06s;
