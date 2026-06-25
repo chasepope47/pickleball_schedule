@@ -62,14 +62,16 @@ function _renderShell() {
   document.getElementById('modalSub').textContent   = 'Manage SafeStreets members';
   document.getElementById('modalActions').innerHTML = '';
   document.getElementById('modalBody').innerHTML = `
-    <div class="admin-tabs" id="adminTabs">
-      <button class="admin-tab active" data-view="users">👥 Users</button>
-      <button class="admin-tab"        data-view="management">👔 Staff</button>
-      <button class="admin-tab"        data-view="waivers">📋 Waivers</button>
-      <button class="admin-tab"        data-view="departments">🏢 Departments</button>
-      <button class="admin-tab"        data-view="tournaments">🏆 Tournaments</button>
-      <button class="admin-tab"        data-view="rivalry">⚔️ Rivalry</button>
-      <button class="admin-tab"        data-view="create">＋ Create</button>
+    <div class="admin-tabs-wrap">
+      <div class="admin-tabs" id="adminTabs">
+        <button class="admin-tab active" data-view="users">👥 Users</button>
+        <button class="admin-tab"        data-view="management">👔 Staff</button>
+        <button class="admin-tab"        data-view="waivers">📋 Waivers</button>
+        <button class="admin-tab"        data-view="departments">🏢 Departments</button>
+        <button class="admin-tab"        data-view="tournaments">🏆 Tournaments</button>
+        <button class="admin-tab"        data-view="rivalry">⚔️ Rivalry</button>
+        <button class="admin-tab"        data-view="create">＋ Create</button>
+      </div>
     </div>
     <div id="adminContent"></div>
   `;
@@ -128,9 +130,10 @@ async function _loadUsers() {
           case 'block':      return _confirmBlock(p, true);
           case 'unblock':    return _confirmBlock(p, false);
           case 'delete':     return _confirmDelete(p);
-          case 'makeadmin':  return _confirmRole(p, 'admin');
-          case 'makemgr':    return _confirmRole(p, 'manager');
-          case 'setuser':    return _confirmRole(p, 'user');
+          case 'makesysadmin': return _confirmRole(p, 'system_admin');
+          case 'makeadmin':    return _confirmRole(p, 'admin');
+          case 'makemgr':      return _confirmRole(p, 'manager');
+          case 'setuser':      return _confirmRole(p, 'user');
           case 'edit-stats': return _openEditStatsModal(p);
         }
       });
@@ -405,12 +408,15 @@ function _userRowHtml(p) {
     let roleBtn = '';
     if (targetRole === 'admin') {
       roleBtn = _mkBtn('Revoke Admin', 'demote', 'setuser', p.uid);
+      if (isSysAdmin()) roleBtn += _mkBtn('Make Sys Admin', 'promote', 'makesysadmin', p.uid);
     } else if (targetRole === 'manager') {
       roleBtn = _mkBtn('Revoke Manager', 'demote', 'setuser', p.uid);
-      if (isAdmin()) roleBtn += _mkBtn('Make Admin', 'promote', 'makeadmin', p.uid);
+      if (isAdmin())    roleBtn += _mkBtn('Make Admin', 'promote', 'makeadmin', p.uid);
+      if (isSysAdmin()) roleBtn += _mkBtn('Make Sys Admin', 'promote', 'makesysadmin', p.uid);
     } else {
       roleBtn = _mkBtn('Make Manager', 'promote', 'makemgr', p.uid);
-      if (isAdmin()) roleBtn += _mkBtn('Make Admin', 'promote', 'makeadmin', p.uid);
+      if (isAdmin())    roleBtn += _mkBtn('Make Admin', 'promote', 'makeadmin', p.uid);
+      if (isSysAdmin()) roleBtn += _mkBtn('Make Sys Admin', 'promote', 'makesysadmin', p.uid);
     }
 
     const deleteBtn = _mkBtn('Remove', 'delete', 'delete', p.uid);
@@ -502,7 +508,9 @@ function _confirmRole(player, newRole) {
     title: `Change Role → ${ROLE_LABELS[newRole]}`,
     sub:   `${player.firstName} ${player.lastName}`,
     body: `<p style="font-size:.88rem;color:var(--text-dim)">
-      ${newRole === 'admin'
+      ${newRole === 'system_admin'
+        ? `<strong>${esc(player.firstName)}</strong> will have full system admin access — equal to yours. This cannot be undone from within the app.`
+        : newRole === 'admin'
         ? `<strong>${esc(player.firstName)}</strong> will be able to manage all users including other managers and admins.`
         : newRole === 'manager'
         ? `<strong>${esc(player.firstName)}</strong> will be able to manage users and create accounts, but cannot act on admins.`

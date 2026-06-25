@@ -58,27 +58,42 @@
 }
 
 /* Admin tab switcher */
+/* Wrapper adds a right-edge fade so users can tell it scrolls */
+.admin-tabs-wrap {
+  position: relative;
+  margin-bottom: 16px;
+}
+.admin-tabs-wrap::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0; bottom: 0;
+  width: 32px;
+  background: linear-gradient(to right, transparent, var(--card));
+  pointer-events: none;
+  border-radius: 0 10px 10px 0;
+}
+
 .admin-tabs {
   display: flex;
   flex-wrap: nowrap;
-  gap: 3px;
+  gap: 2px;
   background: var(--hover);
   border-radius: 10px;
   padding: 4px;
-  margin-bottom: 16px;
   overflow-x: auto;
   scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
 .admin-tabs::-webkit-scrollbar { display: none; }
 
 .admin-tab {
   flex-shrink: 0;
   white-space: nowrap;
-  padding: 8px 14px;
+  padding: 7px 10px;
   border: none;
   outline: none;
   border-radius: 7px;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 700;
   cursor: pointer;
   background: transparent;
